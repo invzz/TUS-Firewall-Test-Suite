@@ -6,6 +6,7 @@ var float AverDT;
 var float Alpha;
 var bool  bOffsetInit;
 var float ClientTimeStamp;
+var float TimeSinceBegin; // For auto-adjusting Alpha
 
 replication
 {
@@ -17,19 +18,24 @@ replication
 simulated function PostBeginPlay()
 {
     Super.PostBeginPlay();
-    Alpha = 0.30; // schnelleres Einfangen nach Join
-    // du kannst nach ~2 Sekunden wieder auf 0.20 runtersetzen
+    Alpha = 0.30; // faster convergence after join
+    TimeSinceBegin = 0.0;
 }
 simulated function Tick(float DeltaTime)
-{	 local float Hard;
+{
+    local float Hard;
     if (Role == ROLE_Authority)
     {
         ServerNow = Level.TimeSeconds;
         return;
     }
 
+    // Auto-adjust Alpha after 2 seconds
+    TimeSinceBegin += DeltaTime;
+    if (TimeSinceBegin > 2.0 && Alpha > 0.20)
+        Alpha = 0.20;
+
     // harte, aktuelle Differenz
-   
     Hard = ServerNow - Level.TimeSeconds;
 
     if (!bOffsetInit)
@@ -47,8 +53,7 @@ simulated function Tick(float DeltaTime)
     }
     else
     {
-        // sonst weich glätten
-        // Tipp: Alpha die ersten ~2s größer (0.30), danach 0.15–0.20
+        // sonst weich glÃ¤tten
         OffsetSrvMinusCli = (1.0 - Alpha) * OffsetSrvMinusCli + Alpha * Hard;
     }
 }
