@@ -29,71 +29,142 @@ class GameClient:
 
     def ping_server(self, count=1, timeout=1.0):
         """Ping the server using a UDP echo and measure round-trip time in ms."""
-        port = 9696  # Use a known open UDP port
+        # Try multiple ports in case one isn't available
+        ping_ports = [9696, 6962, 6963]  # Primary ping port + fallbacks
+        
         for _ in range(count):
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.settimeout(timeout)
-                message = f"ping-{self.player_id}-{time.time()}".encode()
-                start = time.time()
-                sock.sendto(message, (self.server_ip, port))
-                _data, _addr = sock.recvfrom(1024)
-                end = time.time()
-                rtt = (end - start) * 1000.0  # ms
-                self.stats.ping_times.append(rtt)
-            except Exception:
-                self.stats.ping_times.append(None)
-            finally:
-                sock.close()
+            rtt_measured = False
+            for port in ping_ports:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.settimeout(timeout)
+                    message = f"ping-{self.player_id}-{time.time()}".encode()
+                    start = time.time()
+                    sock.sendto(message, (self.server_ip, port))
+                    _data, _addr = sock.recvfrom(1024)
+                    end = time.time()
+                    rtt = (end - start) * 1000.0  # ms
+                    self.stats.record_ping(rtt)  # Use new method for time-series data
+                    rtt_measured = True
+                    sock.close()
+                    break  # Success, no need to try other ports
+                except Exception:
+                    if sock:
+                        sock.close()
+                    continue  # Try next port
+            
+            if not rtt_measured:
+                self.stats.ping_times.append(None)  # All ping attempts failed
         
     def log(self, message):
         """Log a message with timestamp and player ID."""
         print(f"[{datetime.now()}] Player {self.player_id}: {message}")
         
-    def simulate_game_traffic(self, duration_seconds=120):
-        """Simulate realistic game traffic patterns"""
+    def is_server_available(self):
+        """Check if server is still available by attempting a quick connection"""
+        # Try multiple ports to determine server availability
+        test_ports = [6962, 9696, 6963]  # Primary UDP ports for availability check
+        
+        for port in test_ports:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(2.0)  # Quick timeout
+                test_message = f"alive-check-{self.player_id}".encode()
+                sock.sendto(test_message, (self.server_ip, port))
+                # Wait for any response
+                _data, _addr = sock.recvfrom(1024)
+                sock.close()
+                return True  # Server responded, it's available
+            except Exception:
+                if sock:
+                    sock.close()
+                continue
+        
+        return False  # No response from any port, server likely down
+
+    def _check_server_status(self, consecutive_failures, max_failures, start_time, now):
+        """Check server availability and return updated failure count"""
+        if self.is_server_available():
+            consecutive_failures = 0
+            self.log(f"Server availability check: OK (running for {now - start_time:.1f}s)")
+        else:
+            consecutive_failures += 1
+            self.log(f"Server availability check: FAILED ({consecutive_failures}/{max_failures})")
+            
+        return consecutive_failures
+
+    def _execute_game_activity(self, activity):
+        """Execute a specific game activity"""
+        if activity == 'query':
+            self._send_server_query()
+        elif activity == 'join':
+            self._attempt_server_join()
+        elif activity == 'gameplay':
+            self._send_gameplay_packets()
+        elif activity == 'heartbeat':
+            self._send_heartbeat()
+        elif activity == 'tcp_test':
+            self._test_tcp_connection()
+
+    def simulate_game_traffic(self):
+        """Simulate continuous game traffic until server becomes unavailable"""
         self.running = True
-        self.log("Starting game simulation...")
+        self.log("Starting continuous game simulation (will run until server goes down)...")
 
         start_time = time.time()
-        end_time = start_time + duration_seconds
         last_ping = 0
+        last_server_check = 0
+        last_throughput_snapshot = 0
         ping_interval = 5  # seconds
+        server_check_interval = 10  # Check server availability every 10 seconds
+        throughput_snapshot_interval = 2  # Record throughput every 2 seconds
+        consecutive_failures = 0
+        max_consecutive_failures = 3  # Server considered down after 3 consecutive failures
 
-        while time.time() < end_time and self.running:
+        while self.running:
             now = time.time()
-            # Ping server every ping_interval seconds
+            
+            # Ping server periodically for latency measurement
             if now - last_ping > ping_interval:
                 self.ping_server(count=1)
                 last_ping = now
+            
+            # Record throughput snapshot periodically
+            if now - last_throughput_snapshot > throughput_snapshot_interval:
+                self.stats.record_throughput_snapshot()
+                last_throughput_snapshot = now
+            
+            # Check server availability periodically
+            if now - last_server_check > server_check_interval:
+                consecutive_failures = self._check_server_status(
+                    consecutive_failures, max_consecutive_failures, start_time, now)
+                    
+                if consecutive_failures >= max_consecutive_failures:
+                    self.log("Server appears to be down - stopping simulation")
+                    break
+                        
+                last_server_check = now
+            
             try:
-                # Simulate different game activities with different probabilities
+                # Select and execute game activity
                 activity = random.choices(
-                    ['query', 'join', 'gameplay', 'heartbeat', 'disconnect'],
-                    weights=[10, 5, 60, 20, 5]
+                    ['query', 'join', 'gameplay', 'heartbeat', 'tcp_test'],
+                    weights=[10, 5, 70, 10, 5]  # Maximum gameplay traffic
                 )[0]
                 
-                if activity == 'query':
-                    self._send_server_query()
-                elif activity == 'join':
-                    self._attempt_server_join()
-                elif activity == 'gameplay':
-                    self._send_gameplay_packets()
-                elif activity == 'heartbeat':
-                    self._send_heartbeat()
-                elif activity == 'disconnect':
-                    self._test_tcp_connection()
-                    
-                # Variable delay between activities (realistic player behavior)
-                delay = random.uniform(0.1, 2.0)
+                self._execute_game_activity(activity)
+                
+                # Maximum frequency for high-load testing
+                delay = random.uniform(0.001, 0.01)  # 100-1000 packets per second
                 time.sleep(delay)
                 
             except Exception as e:
                 self.stats.errors.append(f"Activity {activity}: {str(e)}")
-                time.sleep(1)
+                time.sleep(0.001)  # Minimal pause on error, maximum throughput
                 
         self.running = False
-        self.log(f"Simulation completed. Sent {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
+        total_runtime = time.time() - start_time
+        self.log(f"Simulation ended after {total_runtime:.1f}s. Sent {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
         
     def _send_server_query(self):
         """Send query packets to discover servers"""
@@ -110,8 +181,8 @@ class GameClient:
         """Send multiple gameplay packets (movement, shooting, etc.)"""
         port = random.choice(self.game_ports['ut_servers'])
         
-        # Send burst of gameplay packets
-        for _ in range(random.randint(3, 8)):
+        # Send high-intensity burst of gameplay packets
+        for _ in range(random.randint(10, 25)):
             packet_types = ['move', 'fire', 'reload', 'jump', 'pickup']
             packet_type = random.choice(packet_types)
             
@@ -127,7 +198,7 @@ class GameClient:
                 data = f"\\pickup\\item{random.randint(1,10)}"
                 
             self._send_udp_packet(port, data)
-            time.sleep(random.uniform(0.05, 0.2))  # Quick succession
+            time.sleep(random.uniform(0.001, 0.01))  # Maximum speed burst
             
     def _send_heartbeat(self):
         """Send heartbeat/keepalive packets"""

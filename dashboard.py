@@ -55,7 +55,7 @@ def format_timestamp(timestamp_str):
     try:
         dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except:
+    except ValueError:
         return timestamp_str
 
 def get_server_load_info(total_traffic):
@@ -129,7 +129,8 @@ def display_ping_analysis(summary):
     ping_avg = summary.get('ping_avg_ms')
     ping_count = summary.get('ping_count', 0)
     
-    if ping_count > 0:
+    # Check if ping data is available (not null and count > 0)
+    if ping_count > 0 and ping_min is not None:
         st.subheader("🏓 Network Latency Analysis")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -140,6 +141,8 @@ def display_ping_analysis(summary):
             st.metric("Avg Latency", f"{ping_avg:.1f}ms" if ping_avg else "N/A")
         with col4:
             st.metric("Max Latency", f"{ping_max:.1f}ms" if ping_max else "N/A")
+    else:
+        st.info("ℹ️ Ping data not available - consider enabling ping collection in the client simulator")
 
 def display_traffic_analysis_charts(summary):
     """Display traffic analysis charts section"""
@@ -171,6 +174,310 @@ def display_traffic_analysis_charts(summary):
                                      ['#A8E6CF', '#FFD93D'])
         if fig_udp:
             st.plotly_chart(fig_udp, use_container_width=True)
+
+def display_efficiency_metrics(summary, config):
+    """Display network efficiency metrics section"""
+    st.subheader("⚡ Network Efficiency Metrics")
+    
+    bytes_sent = summary.get('total_bytes_sent', 0)
+    bytes_received = summary.get('total_bytes_received', 0)
+    udp_sent = summary.get('total_udp_packets', 0)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        # Data efficiency 
+        efficiency = (bytes_received / bytes_sent * 100) if bytes_sent > 0 else 0
+        st.metric("Data Efficiency", f"{efficiency:.1f}%", 
+                 help="Percentage of sent data that was successfully received")
+        
+    with col2:
+        # Average packet size
+        avg_packet_size = bytes_sent / udp_sent if udp_sent > 0 else 0
+        st.metric("Avg Packet Size", f"{avg_packet_size:.0f} bytes",
+                 help="Average UDP packet size")
+        
+    with col3:
+        # Packets per second
+        duration = config.get('duration_seconds', 1)
+        packets_per_sec = udp_sent / duration if duration > 0 else 0
+        st.metric("Packets/Second", f"{packets_per_sec:.1f}",
+                 help="Average UDP packets sent per second")
+
+def display_player_details(data):
+    """Display player performance details section"""
+    st.subheader("👥 Player Performance Details")
+    
+    players = data.get('player_details', [])
+    if not players:
+        return
+        
+    # Create dataframe for player stats
+    player_data = []
+    for player in players:
+        player_data.append({
+            'Player ID': player.get('player_id'),
+            'TCP Connections': player.get('tcp_connections', 0),
+            'TCP Failed': player.get('tcp_failed', 0),
+            'UDP Sent': player.get('udp_packets_sent', 0),
+            'UDP Responses': player.get('udp_responses', 0),
+            'UDP Timeouts': player.get('udp_timeouts', 0),
+            'Bytes Sent': player.get('total_bytes_sent', 0),
+            'Bytes Received': player.get('total_bytes_received', 0),
+            'Errors': player.get('error_count', 0)
+        })
+    
+    df_players = pd.DataFrame(player_data)
+    
+    # Player performance charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fig_bytes = px.bar(
+            df_players,
+            x='Player ID',
+            y=['Bytes Sent', 'Bytes Received'],
+            title="Data Transfer by Player",
+            barmode='group'
+        )
+        st.plotly_chart(fig_bytes, use_container_width=True)
+        
+    with col2:
+        fig_udp_perf = px.bar(
+            df_players,
+            x='Player ID', 
+            y=['UDP Responses', 'UDP Timeouts'],
+            title="UDP Performance by Player",
+            barmode='group'
+        )
+        st.plotly_chart(fig_udp_perf, use_container_width=True)
+    
+    # Player details table
+    st.subheader("📋 Detailed Player Statistics")
+    st.dataframe(df_players, use_container_width=True)
+
+def create_ping_timeline_chart(player_details):
+    """Create a time-series chart showing ping over time for all clients"""
+    ping_data = []
+    
+    for player in player_details:
+        ping_history = player.get('ping_history', [])
+        if ping_history:
+            for point in ping_history:
+                if point['ping_ms'] is not None:
+                    ping_data.append({
+                        'Player': f"Client {player['player_id']}",
+                        'Time (seconds)': point['timestamp'],
+                        'Ping (ms)': point['ping_ms']
+                    })
+    
+    if not ping_data:
+        return None
+        
+    df = pd.DataFrame(ping_data)
+    
+    # Create line chart with different color for each player
+    fig = px.line(df, 
+                  x='Time (seconds)', 
+                  y='Ping (ms)',
+                  color='Player',
+                  title="Client Ping Over Time",
+                  labels={'Time (seconds)': 'Time (seconds)', 'Ping (ms)': 'Ping (ms)'}
+                  )
+    
+    fig.update_traces(mode='markers+lines')
+    fig.update_layout(
+        xaxis_title="Time (seconds)",
+        yaxis_title="Ping (ms)",
+        legend_title="Players",
+        hovermode='x unified'
+    )
+    
+    return fig
+
+def create_throughput_timeline_chart(player_details):
+    """Create a time-series chart showing throughput over time for all clients"""
+    throughput_data = []
+    
+    for player in player_details:
+        throughput_history = player.get('throughput_history', [])
+        if throughput_history:
+            for point in throughput_history:
+                throughput_data.append({
+                    'Player': f"Client {player['player_id']}",
+                    'Time (seconds)': point['timestamp'],
+                    'Packets/sec': point['packets_per_sec'],
+                    'Total Packets': point['total_packets']
+                })
+    
+    if not throughput_data:
+        return None
+        
+    df = pd.DataFrame(throughput_data)
+    
+    # Create line chart showing packets per second
+    fig = px.line(df, 
+                  x='Time (seconds)', 
+                  y='Packets/sec',
+                  color='Player',
+                  title="Client Throughput Over Time",
+                  labels={'Time (seconds)': 'Time (seconds)', 'Packets/sec': 'Packets/Second'}
+                  )
+    
+    fig.update_traces(mode='markers+lines')
+    fig.update_layout(
+        xaxis_title="Time (seconds)",
+        yaxis_title="Packets per Second",
+        legend_title="Players",
+        hovermode='x unified'
+    )
+    
+    return fig
+
+def create_aggregate_timeline_charts(player_details):
+    """Create aggregated timeline charts showing average ping and total throughput"""
+    # Collect all timestamps from all players
+    all_timestamps = set()
+    for player in player_details:
+        ping_history = player.get('ping_history', [])
+        throughput_history = player.get('throughput_history', [])
+        all_timestamps.update(point['timestamp'] for point in ping_history)
+        all_timestamps.update(point['timestamp'] for point in throughput_history)
+    
+    if not all_timestamps:
+        return None, None
+    
+    sorted_timestamps = sorted(all_timestamps)
+    
+    # Aggregate data by time intervals
+    aggregate_data = []
+    
+    for timestamp in sorted_timestamps:
+        # Find ping values at this timestamp
+        pings_at_time = []
+        throughput_at_time = 0
+        
+        for player in player_details:
+            # Get ping closest to this timestamp
+            ping_history = player.get('ping_history', [])
+            closest_ping = None
+            min_time_diff = float('inf')
+            
+            for point in ping_history:
+                time_diff = abs(point['timestamp'] - timestamp)
+                if time_diff < min_time_diff and point['ping_ms'] is not None:
+                    min_time_diff = time_diff
+                    closest_ping = point['ping_ms']
+            
+            if closest_ping is not None and min_time_diff < 1.0:  # Within 1 second
+                pings_at_time.append(closest_ping)
+            
+            # Get throughput at this timestamp
+            throughput_history = player.get('throughput_history', [])
+            for point in throughput_history:
+                if abs(point['timestamp'] - timestamp) < 0.5:  # Within 0.5 seconds
+                    throughput_at_time += point['packets_per_sec']
+        
+        if pings_at_time or throughput_at_time > 0:
+            aggregate_data.append({
+                'Time (seconds)': timestamp,
+                'Avg Ping (ms)': sum(pings_at_time) / len(pings_at_time) if pings_at_time else None,
+                'Total Throughput (packets/sec)': throughput_at_time
+            })
+    
+    if not aggregate_data:
+        return None, None
+    
+    df = pd.DataFrame(aggregate_data)
+    
+    # Create ping chart
+    ping_fig = None
+    if df['Avg Ping (ms)'].notna().any():
+        ping_fig = px.line(df, 
+                          x='Time (seconds)', 
+                          y='Avg Ping (ms)',
+                          title="Average Client Ping Over Time",
+                          labels={'Time (seconds)': 'Time (seconds)', 'Avg Ping (ms)': 'Average Ping (ms)'}
+                          )
+        ping_fig.update_traces(mode='markers+lines', line_color='#FF6B6B')
+        ping_fig.update_layout(
+            xaxis_title="Time (seconds)",
+            yaxis_title="Average Ping (ms)",
+            hovermode='x'
+        )
+    
+    # Create throughput chart  
+    throughput_fig = None
+    if df['Total Throughput (packets/sec)'].max() > 0:
+        throughput_fig = px.line(df,
+                                x='Time (seconds)',
+                                y='Total Throughput (packets/sec)', 
+                                title="Total Client Throughput Over Time",
+                                labels={'Time (seconds)': 'Time (seconds)', 'Total Throughput (packets/sec)': 'Total Packets/Second'}
+                                )
+        throughput_fig.update_traces(mode='markers+lines', line_color='#4ECDC4')
+        throughput_fig.update_layout(
+            xaxis_title="Time (seconds)",
+            yaxis_title="Total Packets per Second",
+            hovermode='x'
+        )
+    
+    return ping_fig, throughput_fig
+
+def display_time_series_analysis(data):
+    """Display time-series analysis section"""
+    st.subheader("📈 Time-Series Analysis")
+    
+    player_details = data.get('player_details', [])
+    if not player_details:
+        st.info("No player time-series data available")
+        return
+    
+    # Check if any player has time-series data
+    has_ping_data = any(player.get('ping_history') for player in player_details)
+    has_throughput_data = any(player.get('throughput_history') for player in player_details)
+    
+    if not has_ping_data and not has_throughput_data:
+        st.info("⏰ Time-series data not available - this requires running the enhanced client simulation")
+        return
+    
+    # Individual client charts
+    st.subheader("📊 Individual Client Performance")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if has_ping_data:
+            ping_chart = create_ping_timeline_chart(player_details)
+            if ping_chart:
+                st.plotly_chart(ping_chart, use_container_width=True)
+        else:
+            st.info("No ping time-series data available")
+    
+    with col2:
+        if has_throughput_data:
+            throughput_chart = create_throughput_timeline_chart(player_details)
+            if throughput_chart:
+                st.plotly_chart(throughput_chart, use_container_width=True)
+        else:
+            st.info("No throughput time-series data available")
+    
+    # Aggregated charts
+    if has_ping_data or has_throughput_data:
+        st.subheader("🔄 Aggregated Performance Trends")
+        ping_agg_fig, throughput_agg_fig = create_aggregate_timeline_charts(player_details)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if ping_agg_fig:
+                st.plotly_chart(ping_agg_fig, use_container_width=True)
+            else:
+                st.info("No aggregated ping data available")
+        
+        with col2:
+            if throughput_agg_fig:
+                st.plotly_chart(throughput_agg_fig, use_container_width=True)
+            else:
+                st.info("No aggregated throughput data available")
 
 def display_client_report(data):
     """Display client report visualization."""
@@ -345,6 +652,9 @@ def display_client_report(data):
         # Player details table
         st.subheader("📋 Detailed Player Statistics")
         st.dataframe(df_players, use_container_width=True)
+    
+    # Time-series analysis section
+    display_time_series_analysis(data)
 
 def display_aggregated_statistics(client_data, server_data):
     """Display aggregated statistics across client and server reports"""
@@ -358,15 +668,16 @@ def display_aggregated_statistics(client_data, server_data):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        total_clients = client_data.get('clients_tested', 0)
+        # Use correct field names from simulation_config and summary_stats
+        total_clients = client_data.get('simulation_config', {}).get('num_players', 0)
         st.metric("Total Clients", total_clients)
         
     with col2:
-        test_duration = client_data.get('test_duration', 0)
+        test_duration = client_data.get('simulation_config', {}).get('duration_seconds', 0)
         st.metric("Test Duration", f"{test_duration}s")
         
     with col3:
-        server_connections = server_data.get('connections_handled', 0)
+        server_connections = server_data.get('total_tcp_connections', 0)
         st.metric("Server Connections", server_connections)
         
     with col4:
@@ -380,41 +691,41 @@ def display_aggregated_statistics(client_data, server_data):
     col1, col2 = st.columns(2)
     
     with col1:
-        # Client vs Server comparison
-        client_success = 0
-        server_success = 0
+        # Client vs Server comparison using correct field names
+        client_summary = client_data.get('summary_stats', {})
+        client_success = (client_summary.get('total_tcp_connections', 0) + 
+                         client_summary.get('total_udp_responses', 0))
         
-        if 'client_statistics' in client_data:
-            for client in client_data['client_statistics']:
-                if 'tcp_results' in client:
-                    client_success += client['tcp_results'].get('successful_connections', 0)
-                if 'udp_results' in client:
-                    client_success += client['udp_results'].get('successful_packets', 0)
-                    
+        server_success = 0
         if 'port_details' in server_data:
             for port in server_data['port_details']:
                 server_success += port.get('connections', 0) + port.get('packets', 0)
         
         success_ratio = (min(client_success, server_success) / max(client_success, 1)) * 100
         st.metric("Client-Server Sync", f"{success_ratio:.1f}%",
-                 help="How well client and server metrics align")
+                 help=f"Client: {client_success}, Server: {server_success}")
     
     with col2:
         # Overall system efficiency
         total_attempts = client_success
         total_handled = server_success
+        system_efficiency = 0
         if total_attempts > 0:
             system_efficiency = (total_handled / total_attempts) * 100
             st.metric("System Efficiency", f"{system_efficiency:.1f}%",
                      help="Overall percentage of client requests handled by server")
+        else:
+            st.metric("System Efficiency", "N/A", help="No client attempts recorded")
     
     # Performance trending (if multiple tests exist)
     st.subheader("📈 Performance Insights")
     
     # Calculate key performance indicators
+    throughput = 0
     if test_duration > 0:
-        throughput = server_connections / test_duration
-        st.info(f"**Average Throughput**: {throughput:.2f} connections/second")
+        total_server_activity = server_data.get('total_tcp_connections', 0) + server_data.get('total_udp_packets', 0)
+        throughput = total_server_activity / test_duration
+        st.info(f"**Average Throughput**: {throughput:.2f} transactions/second")
         
     if total_clients > 0 and test_duration > 0:
         client_efficiency = (server_connections / (total_clients * test_duration)) * 100
@@ -469,8 +780,7 @@ def display_server_report(data):
         
     with col4:
         # Server load analysis
-        load_level = "Low" if total_traffic < 100 else "Medium" if total_traffic < 500 else "High"
-        load_color = "green" if load_level == "Low" else "orange" if load_level == "Medium" else "red"
+        load_level, load_color = get_server_load_info(total_traffic)
         st.metric("Server Load", load_level)
         st.markdown(f"<span style='color: {load_color}'>●</span> {load_level} traffic volume", 
                    unsafe_allow_html=True)

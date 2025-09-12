@@ -35,9 +35,10 @@ services:
       - ../results:/shared
     environment:
       - TERM=xterm-256color
-      - NUM_CLIENTS=${NUM_CLIENTS:-18}        # Number of simulated clients (default: 18)
-      - SERVER_IP=nftables-server-container   # Target server hostname
-      - DURATION=${DURATION:-120}             # Simulation duration in seconds (default: 120)
+      - NUM_CLIENTS=${NUM_CLIENTS:-18}                    # Number of simulated clients (default: 18)
+      - SERVER_IP=nftables-server-container               # Target server hostname
+      - DURATION=${DURATION:-120}                         # Simulation duration in seconds (default: 120)
+      - CONNECTIONS_PER_PLAYER=${CONNECTIONS_PER_PLAYER:-3} # Concurrent connections per player (default: 3)
     command: >
       sh -c "sleep 5 && python3 /app/client/game-client-simulator.py"
   

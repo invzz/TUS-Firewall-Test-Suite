@@ -11,39 +11,44 @@ from game_client import GameClient
 class GameClientManager:
     """Manages multiple game clients and coordinates simulation."""
     
-    def __init__(self, num_players=50, server_ip="nftables-test-container", duration=120):
+    def __init__(self, num_players=50, server_ip="nftables-test-container", duration=120, connections_per_player=3):
         self.num_players = num_players
         self.server_ip = server_ip
         self.duration = duration
+        self.connections_per_player = connections_per_player  # Multiple concurrent connections per player
         self.clients = []
         self.threads = []
         
     def start_simulation(self):
-        """Start the multi-client simulation."""
-        print(f"=== Starting {self.num_players} Player Simulation at {datetime.now()} ===")
+        """Start the multi-client simulation with multiple connections per player."""
+        total_connections = self.num_players * self.connections_per_player
+        print(f"=== Starting {self.num_players} Player Simulation ({total_connections} total connections) at {datetime.now()} ===")
         print(f"Target Server: {self.server_ip}")
-        print(f"Duration: {self.duration} seconds")
+        print(f"Connections per player: {self.connections_per_player}")
+        print("Mode: Maximum load - Continuous until server goes down")
         
-        # Create and start client threads
-        for i in range(1, self.num_players + 1):
-            client = GameClient(i, self.server_ip)
-            self.clients.append(client)
+        # Create multiple connection threads per player
+        for player_id in range(1, self.num_players + 1):
+            for connection_id in range(1, self.connections_per_player + 1):
+                # Create a unique client instance for each connection
+                client = GameClient(f"{player_id}-{connection_id}", self.server_ip)
+                self.clients.append(client)
+                
+                thread = threading.Thread(target=client.simulate_game_traffic)
+                thread.daemon = True
+                self.threads.append(thread)
+                thread.start()
+                
+                # Minimal stagger to avoid overwhelming connection setup
+                time.sleep(random.uniform(0.01, 0.05))
             
-            thread = threading.Thread(target=client.simulate_game_traffic, args=(self.duration,))
-            thread.daemon = True
-            self.threads.append(thread)
-            thread.start()
-            
-            # Stagger player starts slightly
-            time.sleep(random.uniform(0.1, 0.5))
-            
-        print(f"All {self.num_players} players started")
+        print(f"All {self.num_players} players with {total_connections} concurrent connections started in maximum load mode")
         
         # Wait for all threads to complete
         for thread in self.threads:
             thread.join()
             
-        print(f"All players finished at {datetime.now()}")
+        print(f"All connections finished at {datetime.now()}")
         
     def generate_report(self):
         """Generate comprehensive client-side report"""
@@ -156,11 +161,12 @@ class GameClientManager:
             'timestamp': datetime.now().isoformat(),
             'simulation_config': {
                 'num_players': self.num_players,
-                'duration_seconds': self.duration,
+                'mode': 'continuous_until_server_down',
+                'original_duration_setting': self.duration,  # Keep for compatibility
                 'target_server': self.server_ip
             },
             'summary_stats': summary_stats,
-            'player_details': [client.get_stats_dict() for client in self.clients]
+            'player_details': [client.stats.get_stats_dict() for client in self.clients]
         }
         
         filename = f"/shared/client-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"

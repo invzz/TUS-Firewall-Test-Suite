@@ -19,7 +19,7 @@ UDP_PORTS = [
 
 # Default selected ports for testing (to avoid too many listeners)
 DEFAULT_TCP_PORTS = [21, 1194, 6567, 19999]
-DEFAULT_UDP_PORTS = [6962, 6963, 9090, 9091, 7787, 19999, 6979]
+DEFAULT_UDP_PORTS = [6962, 6963, 9090, 9091, 7787, 19999, 6979, 9696]  # Added 9696 for ping functionality
 
 # Test connectivity ports (mix of allowed and blocked)
 TEST_TCP_PORTS = [21, 1194, 6567, 22, 80, 443]
