@@ -6,12 +6,19 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy client script
-COPY src/client/game-client-simulator.py /usr/local/bin/game-client-simulator.py
-RUN chmod +x /usr/local/bin/game-client-simulator.py
+# Create application directory
+WORKDIR /app
 
-# Set working directory
-WORKDIR /root
+# Copy entire client module (refactored into multiple files)
+COPY src/client/ ./client/
+
+# Set Python path to find client modules
+ENV PYTHONPATH=/app/client
+
+# Environment variables for configuration (with defaults)
+ENV NUM_CLIENTS=18
+ENV SERVER_IP=nftables-test-container
+ENV DURATION=120
 
 # Default command
-CMD ["python3", "/usr/local/bin/game-client-simulator.py"]
+CMD ["python3", "/app/client/game-client-simulator.py"]
