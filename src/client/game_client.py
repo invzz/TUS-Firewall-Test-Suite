@@ -3,8 +3,9 @@
 import socket
 import time
 import random
+import os
 from datetime import datetime
-from player_stats import PlayerStats
+from .player_stats import PlayerStats
 
 
 class GameClient:
@@ -13,6 +14,17 @@ class GameClient:
     def __init__(self, player_id: int, server_ip: str = "nftables-test-container"):
         self.player_id = player_id
         self.server_ip = server_ip
+        
+        # UT Network Specifications from environment variables
+        self.ut_udp_overhead = int(os.getenv('UT_UDP_OVERHEAD', '28'))
+        self.ut_tickrate = int(os.getenv('UT_TICKRATE', '85'))
+        self.ut_default_netspeed = int(os.getenv('UT_DEFAULT_NETSPEED', '40000'))
+        self.ut_max_netspeed = int(os.getenv('UT_MAX_NETSPEED', '100000'))
+        
+        # Calculate authentic UT packet sizes based on real server specs
+        self.ut_default_payload = (self.ut_default_netspeed // self.ut_tickrate) - self.ut_udp_overhead
+        self.ut_max_payload = (self.ut_max_netspeed // self.ut_tickrate) - self.ut_udp_overhead
+        self.ut_tick_interval = 1.0 / self.ut_tickrate  # Seconds per tick
         self.stats = PlayerStats(player_id)
         self.running = False
 
@@ -116,6 +128,8 @@ class GameClient:
         """Simulate continuous game traffic until server becomes unavailable"""
         self.running = True
         self.log("Starting continuous game simulation (will run until server goes down)...")
+        self.log(f"Authentic UT specs: {self.ut_tickrate}Hz tickrate, {self.ut_default_netspeed}-{self.ut_max_netspeed} netspeed, {self.ut_udp_overhead}B overhead")
+        self.log(f"Packet sizes: {self.ut_default_payload}-{self.ut_max_payload} bytes payload ({self.ut_default_payload + self.ut_udp_overhead}-{self.ut_max_payload + self.ut_udp_overhead} total)")
 
         start_time = time.time()
         last_ping = 0
@@ -160,10 +174,9 @@ class GameClient:
                 
                 self._execute_game_activity(activity)
                 
-                # Realistic UT gameplay frequency 
-                # Most activities: moderate frequency, gameplay bursts: UT tickrate (85Hz)
+                # Realistic UT gameplay frequency using authentic tickrate
                 if activity == 'gameplay':
-                    delay = 0.01176  # Already handled in _send_gameplay_packets (85Hz tickrate)
+                    delay = self.ut_tick_interval  # Already handled in _send_gameplay_packets
                 else:
                     delay = random.uniform(0.05, 0.5)  # Other activities more frequent, less blocking
                 time.sleep(delay)
@@ -188,33 +201,34 @@ class GameClient:
         self._send_udp_packet(port, join_packet)
         
     def _send_gameplay_packets(self):
-        """Send realistic UT gameplay packets with proper sizes and tickrate"""
+        """Send realistic UT gameplay packets with authentic server specifications"""
         port = random.choice(self.game_ports['ut_servers'])
         
-        # UT Network specs from real server info:
-        # - Default netspeed: 40k bytes/sec, tickrate: 85Hz → ~470 bytes + 28 UDP overhead = 498 bytes
-        # - Max netspeed: 10k bytes/sec, tickrate: 85Hz → ~118 bytes + 28 UDP overhead = 146 bytes  
-        # - Tickrate: 85Hz means packets every ~11.8ms
+        # Using authentic UT server specs from your friend:
+        # - UDP overhead: {self.ut_udp_overhead} bytes
+        # - Tickrate: {self.ut_tickrate} Hz ({self.ut_tick_interval:.4f}s intervals)
+        # - Default netspeed: {self.ut_default_netspeed} bytes/sec → {self.ut_default_payload} byte payload
+        # - Max netspeed: {self.ut_max_netspeed} bytes/sec → {self.ut_max_payload} byte payload
         
-        # Send packets at realistic UT tickrate (85Hz = ~11.8ms intervals)
+        # Send packets at authentic UT tickrate
         packets_in_burst = random.randint(5, 15)  # Realistic burst size
         
         for _ in range(packets_in_burst):
-            # Simulate different netspeed settings
+            # Simulate different netspeed settings based on real server configurations
             netspeed_setting = random.choices(
-                ['low', 'default', 'high'],
-                weights=[20, 60, 20]  # Most players use default
+                ['default', 'high', 'variable'],
+                weights=[60, 30, 10]  # Most use default, some high-end, few variable
             )[0]
             
-            if netspeed_setting == 'low':
-                # 10k netspeed: ~118 payload + 28 UDP = 146 bytes total
-                target_payload_size = 118
-            elif netspeed_setting == 'default': 
-                # 20k netspeed: ~235 payload + 28 UDP = 263 bytes total
-                target_payload_size = 235
-            else:  # high
-                # 40k netspeed: ~470 payload + 28 UDP = 498 bytes total  
-                target_payload_size = 470
+            if netspeed_setting == 'default':
+                # Default netspeed from env: payload size
+                target_payload_size = self.ut_default_payload
+            elif netspeed_setting == 'high':
+                # Max netspeed from env: payload size
+                target_payload_size = self.ut_max_payload
+            else:  # variable
+                # Random between default and max (realistic variance)
+                target_payload_size = random.randint(self.ut_default_payload, self.ut_max_payload)
             
             # Generate realistic gameplay data to reach target size
             packet_types = ['move', 'fire', 'state_update', 'weapon_switch', 'player_update']
@@ -234,8 +248,8 @@ class GameClient:
                 
             self._send_udp_packet(port, base_data)
             
-            # UT tickrate: 85Hz = 11.76ms per tick
-            time.sleep(0.01176)  # Realistic UT server tickrate timing
+            # Use authentic UT tickrate from environment
+            time.sleep(self.ut_tick_interval)  # Real server tickrate timing
             
     def _generate_ut_packet_data(self, packet_type):
         """Generate realistic UT packet data based on packet type"""

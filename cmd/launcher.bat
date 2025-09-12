@@ -1,30 +1,17 @@
-@echo off@echo off
-
-REM NFTables Testing Framework - Main Windows LauncherREM NFTables Testing Framework - Windows Launcher
-
-REM This is a convenience wrapper that calls the actual launcher in cmd/
+@echo off
+REM NFTables Testing Framework - Windows Launcher
 
 echo.
-
-echo.echo ================================
-
-echo ================================echo NFTables Testing Framework
-
-echo NFTables Testing Frameworkecho ================================
-
-echo ================================echo.
-
-echo.echo Select testing mode:
-
-echo Launching main application...echo 1. Complete Game Simulation (with Dashboard)
-
-echo.echo 2. Basic Rule Testing (with Dashboard)  
-
+echo ================================
+echo NFTables Testing Framework
+echo ================================
+echo.
+echo Select testing mode:
+echo 1. Complete Game Simulation (with Dashboard)
+echo 2. Basic Rule Testing (with Dashboard)  
 echo 3. Interactive Server Mode
-
-cd /d "%~dp0"echo 4. Dashboard Only (view existing results)
-
-call cmd\launcher.batecho 5. Local Dashboard (Python venv)
+echo 4. Dashboard Only (view existing results)
+echo 5. Local Dashboard (Python venv)
 echo 6. Show Project Structure
 echo 0. Exit
 echo.
@@ -34,18 +21,18 @@ if "%choice%"=="1" (
     call :select_env_and_run_game
 ) else if "%choice%"=="2" (
     echo Starting basic rule testing...
-    docker-compose -f docker\docker-compose.yml up --build --force-recreate
+    docker-compose -f configs\docker\docker-compose.yml up --build --force-recreate
 ) else if "%choice%"=="3" (
     echo Starting interactive server mode...
     set KEEP_RUNNING=true
-    docker-compose -f docker\docker-compose.yml up --build --force-recreate
+    docker-compose -f configs\docker\docker-compose.yml up --build --force-recreate
 ) else if "%choice%"=="4" (
     echo Starting Dashboard Only...
     echo This will show existing results from previous tests
-    docker-compose -f docker\docker-compose-dashboard.yml up --build
+    docker-compose -f configs\docker\docker-compose-dashboard.yml up --build
 ) else if "%choice%"=="5" (
     echo Starting Local Dashboard with Virtual Environment...
-    call scripts\windows\dashboard-launcher-venv.bat
+    call ..\scripts\windows\dashboard-launcher-venv.bat
 ) else if "%choice%"=="6" (
     echo.
     echo Project Structure:
@@ -74,32 +61,32 @@ set /p env_choice="Enter configuration (1-6): "
 
 if "%env_choice%"=="1" (
     echo Starting light testing configuration...
-    docker-compose --env-file .env.light -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose --env-file configs\environments\.env.light -f configs\docker\docker-compose-game.yml up --build --force-recreate
 ) else if "%env_choice%"=="2" (
     echo Starting normal testing configuration...
-    docker-compose --env-file .env.normal -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose --env-file configs\environments\.env.normal -f configs\docker\docker-compose-game.yml up --build --force-recreate
 ) else if "%env_choice%"=="3" (
     echo Starting stress testing configuration...
-    docker-compose --env-file .env.stress -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose --env-file configs\environments\.env.stress -f configs\docker\docker-compose-game.yml up --build --force-recreate
 ) else if "%env_choice%"=="4" (
     echo Starting performance testing configuration...
     echo WARNING: This will use significant system resources!
     set /p confirm="Continue? (y/N): "
     if /i "%confirm%"=="y" (
-        docker-compose --env-file .env.performance -f docker\docker-compose-game.yml up --build --force-recreate
+        docker-compose --env-file configs\environments\.env.performance -f configs\docker\docker-compose-game.yml up --build --force-recreate
     ) else (
         echo Performance test cancelled.
     )
 ) else if "%env_choice%"=="5" (
     echo Starting authentic UT server specification testing...
     echo Using real server specs for authentic network simulation
-    docker-compose --env-file .env.ut-specs -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose --env-file configs\environments\.env.ut-specs -f configs\docker\docker-compose-game.yml up --build --force-recreate
 ) else if "%env_choice%"=="6" (
     echo Starting with default configuration...
-    docker-compose -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose -f configs\docker\docker-compose-game.yml up --build --force-recreate
 ) else (
     echo Invalid choice, using default configuration...
-    docker-compose -f docker\docker-compose-game.yml up --build --force-recreate
+    docker-compose -f configs\docker\docker-compose-game.yml up --build --force-recreate
 )
 goto :eof
 

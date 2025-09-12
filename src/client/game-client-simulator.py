@@ -9,7 +9,7 @@ to test firewall rules and network connectivity.
 
 import sys
 import os
-from client_manager import GameClientManager
+from .client_manager import GameClientManager
 
 
 def main():

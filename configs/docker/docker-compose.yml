@@ -1,18 +1,18 @@
 services:
   nftables-test:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.server
+      context: ../..
+      dockerfile: configs/docker/Dockerfile.server
     container_name: nftables-test-container
     privileged: true
     network_mode: host
     volumes:
-      - ../config/nftables.conf:/etc/nftables/nftables.conf:ro
-      - ../src/utils/test-nftables.sh:/usr/local/bin/test-nftables.sh:ro
-      - ../src/utils/enhanced-test.sh:/usr/local/bin/enhanced-test.sh:ro
-      - ../src/server/nftables-test-server.py:/usr/local/bin/nftables-test-server.py:ro
-      - ../scripts/linux/run-auto-tests.sh:/usr/local/bin/run-auto-tests.sh:ro
-      - ../results:/shared
+      - ../nftables/nftables.conf:/etc/nftables/nftables.conf:ro
+      - ../../src/utils/test-nftables.sh:/usr/local/bin/test-nftables.sh:ro
+      - ../../src/utils/enhanced-test.sh:/usr/local/bin/enhanced-test.sh:ro
+      - ../../src/server/nftables-test-server.py:/usr/local/bin/nftables-test-server.py:ro
+      - ../../scripts/linux/run-auto-tests.sh:/usr/local/bin/run-auto-tests.sh:ro
+      - ../../results:/shared
     environment:
       - TERM=xterm-256color
       - KEEP_RUNNING=false
@@ -23,8 +23,8 @@ services:
   # Streamlit Dashboard
   dashboard:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.dashboard
+      context: ../..
+      dockerfile: configs/docker/Dockerfile.dashboard
     container_name: tus-dashboard-basic
     depends_on:
       - nftables-test

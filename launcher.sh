@@ -1,22 +1,62 @@
-#!/bin/bash
+#!/bin/bash#!/bin/bash
 
-# NFTables Testing Framework Launcher
 
-select_env_and_run_game() {
-    echo ""
-    echo "🎮 Select test configuration:"
-    echo "1. Light Testing (5 clients, 30s) - Quick validation ⚡"
-    echo "2. Normal Testing (25 clients, 3min) - Realistic load 🎯"  
-    echo "3. Stress Testing (100 clients, 5min) - High load 🔥"
-    echo "4. Performance Testing (500 clients, 10min) - Very high load 💪"
-    echo "5. Default (.env or built-in defaults)"
-    echo ""
-    read -p "Enter configuration (1-5): " env_choice
 
-    case $env_choice in
-        1)
-            echo "Starting light testing configuration..."
-            docker-compose --env-file .env.light -f docker/docker-compose-game.yml up --build
+# NFTables Testing Framework - Main Linux Launcher# NFTables Testing Framework - Main Linux Launcher
+
+# This is a convenience wrapper that calls the actual launcher in cmd/# This is a convenience wrapper that calls the actual launcher in cmd/
+
+
+
+echo ""echo ""
+
+echo "================================"echo "================================"
+
+echo "NFTables Testing Framework"echo "NFTables Testing Framework"
+
+echo "================================"echo "================================"
+
+echo ""echo ""
+
+echo "Launching main application..."echo "Launching main application..."
+
+echo ""echo ""
+
+
+
+# Get the directory of this script# Get the directory of this script
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+
+
+# Change to that directory and run the actual launcher# Change to that directory and run the actual launcher
+
+cd "$DIR"cd "$DIR"
+
+chmod +x cmd/launcher.shchmod +x cmd/launcher.sh
+
+./cmd/launcher.sh./cmd/launcher.sh
+
+echo "Launching main application..."    echo "4. Performance Testing (500 clients, 10min) - Very high load 💪"
+
+echo ""    echo "5. Authentic UT Server Specs (25 clients, 3min) - Real server simulation 🎯🔥"
+
+    echo "6. Default (.env or built-in defaults)"
+
+# Get the directory of this script    echo ""
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"    read -p "Enter configuration (1-6): " env_choice
+
+
+
+# Change to that directory and run the actual launcher    case $env_choice in
+
+cd "$DIR"        1)
+
+chmod +x cmd/launcher.sh            echo "Starting light testing configuration..."
+
+./cmd/launcher.sh            docker-compose --env-file .env.light -f docker/docker-compose-game.yml up --build
             ;;
         2)
             echo "Starting normal testing configuration..."
@@ -37,6 +77,11 @@ select_env_and_run_game() {
             fi
             ;;
         5)
+            echo "Starting authentic UT server specification testing..."
+            echo "🎯 Using real server specs for authentic network simulation"
+            docker-compose --env-file .env.ut-specs -f docker/docker-compose-game.yml up --build
+            ;;
+        6)
             echo "Starting with default configuration..."
             docker-compose -f docker/docker-compose-game.yml up --build
             ;;

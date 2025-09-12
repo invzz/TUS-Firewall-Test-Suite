@@ -4,15 +4,15 @@ services:
   # NFTables Game Server
   nftables-server:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.server
+      context: ../..
+      dockerfile: configs/docker/Dockerfile.server
     container_name: nftables-server-container
     privileged: true
     networks:
       - game-network
     volumes:
-      - ../config/nftables.conf:/etc/nftables/nftables.conf:ro
-      - ../results:/shared
+      - ../nftables/nftables.conf:/etc/nftables/nftables.conf:ro
+      - ../../results:/shared
     environment:
       - TERM=xterm-256color
       - SERVER_DURATION=${DURATION:-120}  # Use same duration as client by default
@@ -24,15 +24,15 @@ services:
   # Game Client Simulator
   game-client:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.client
+      context: ../..
+      dockerfile: configs/docker/Dockerfile.client
     container_name: game-client-container
     depends_on:
       - nftables-server
     networks:
       - game-network
     volumes:
-      - ../results:/shared
+      - ../../results:/shared
     environment:
       - TERM=xterm-256color
       - NUM_CLIENTS=${NUM_CLIENTS:-18}                    # Number of simulated clients (default: 18)
@@ -50,8 +50,8 @@ services:
   # Streamlit Dashboard
   dashboard:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.dashboard
+      context: ../..
+      dockerfile: configs/docker/Dockerfile.dashboard
     container_name: tus-dashboard-container
     depends_on:
       - nftables-server
@@ -61,7 +61,7 @@ services:
     ports:
       - "8501:8501"  # Streamlit dashboard port
     volumes:
-      - ../results:/app/results:ro  # Read-only access to results
+      - ../../results:/app/results:ro  # Read-only access to results
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0

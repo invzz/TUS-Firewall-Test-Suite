@@ -1,0 +1,25 @@
+# Test requirements for TUS Firewall Test Suite
+# Install with: pip install -r requirements-test.txt
+
+# Testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-xdist>=3.0.0
+
+# Test utilities
+unittest-xml-reporting>=3.2.0
+coverage>=7.0.0
+
+# Mocking and fixtures
+responses>=0.23.0
+
+# Dashboard testing dependencies (optional)
+streamlit>=1.28.0
+plotly>=5.15.0
+pandas>=2.0.0
+
+# Development tools
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0

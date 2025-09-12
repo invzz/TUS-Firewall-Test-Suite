@@ -9,7 +9,7 @@ Professional firewall rule validation with realistic traffic simulation.
 ./scripts/linux/run-game-simulation.sh
 
 # Basic rule testing
-docker-compose -f docker/docker-compose.yml up --build
+docker-compose -f configs/docker/docker-compose.yml up --build
 
 # Direct Linux execution (requires sudo)
 sudo ./scripts/linux/run-direct.sh

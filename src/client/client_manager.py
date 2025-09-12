@@ -5,7 +5,7 @@ import time
 import random
 import json
 from datetime import datetime
-from game_client import GameClient
+from .game_client import GameClient
 
 
 class GameClientManager:

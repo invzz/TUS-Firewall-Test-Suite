@@ -9,7 +9,7 @@ echo ""
 
 # Clean up any existing containers
 echo "Cleaning up previous containers..."
-docker-compose -f ../docker/docker-compose-game.yml down --remove-orphans 2>/dev/null
+docker-compose -f ../configs/docker/docker-compose-game.yml down --remove-orphans 2>/dev/null
 
 # Create results directory
 mkdir -p ../results
@@ -19,7 +19,7 @@ echo "Starting game simulation..."
 echo "Server will run for 2 minutes while 18 clients send realistic game traffic"
 echo ""
 
-docker-compose -f ../docker/docker-compose-game.yml up --build
+docker-compose -f ../configs/docker/docker-compose-game.yml up --build
 
 echo ""
 echo "=== Simulation Complete ==="
@@ -29,4 +29,4 @@ echo "  - client-report-*.json (Client traffic statistics)"
 echo "  - nftables-test-results.log (Detailed server logs)"
 
 # Clean up
-docker-compose -f ../docker/docker-compose-game.yml down --remove-orphans
+docker-compose -f ../configs/docker/docker-compose-game.yml down --remove-orphans

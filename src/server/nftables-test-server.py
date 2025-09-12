@@ -9,7 +9,7 @@ and continuous server mode.
 """
 
 import sys
-from test_server import NFTablesTestServer
+from .test_server import NFTablesTestServer
 
 
 def main():
