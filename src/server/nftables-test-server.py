@@ -20,54 +20,59 @@ class PortListener:
         self.connections = 0
         self.packets_received = 0
         
+
     def start(self):
         try:
             if self.protocol == 'tcp':
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.socket.bind(('0.0.0.0', self.port))
-                self.socket.listen(5)
-                self.running = True
-                print(f"[{datetime.now()}] TCP server listening on port {self.port}")
-                
-                while self.running:
-                    try:
-                        conn, addr = self.socket.accept()
-                        self.connections += 1
-                        print(f"[{datetime.now()}] TCP connection #{self.connections} from {addr} to port {self.port}")
-                        # Send a simple response
-                        conn.send(f"Hello from nftables test server port {self.port}\n".encode())
-                        conn.close()
-                    except socket.timeout:
-                        continue
-                    except Exception as e:
-                        if self.running:
-                            print(f"[{datetime.now()}] TCP port {self.port} error: {e}")
-                        break
-                        
+                self._start_tcp()
             elif self.protocol == 'udp':
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                self.socket.bind(('0.0.0.0', self.port))
-                self.socket.settimeout(1.0)
-                self.running = True
-                print(f"[{datetime.now()}] UDP server listening on port {self.port}")
-                
-                while self.running:
-                    try:
-                        data, addr = self.socket.recvfrom(1024)
-                        self.packets_received += 1
-                        print(f"[{datetime.now()}] UDP packet #{self.packets_received} from {addr} to port {self.port}: {data.decode()[:50]}...")
-                        # Send response back
-                        self.socket.sendto(f"ACK from port {self.port}".encode(), addr)
-                    except socket.timeout:
-                        continue
-                    except Exception as e:
-                        if self.running:
-                            print(f"[{datetime.now()}] UDP port {self.port} error: {e}")
-                        break
-                        
+                self._start_udp()
+            else:
+                print(f"[{datetime.now()}] Unknown protocol: {self.protocol}")
         except Exception as e:
             print(f"[{datetime.now()}] Failed to start {self.protocol.upper()} server on port {self.port}: {e}")
+
+    def _start_tcp(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(('0.0.0.0', self.port))
+        self.socket.listen(5)
+        self.running = True
+        print(f"[{datetime.now()}] TCP server listening on port {self.port}")
+        while self.running:
+            try:
+                conn, addr = self.socket.accept()
+                self.connections += 1
+                print(f"[{datetime.now()}] TCP connection #{self.connections} from {addr} to port {self.port}")
+                # Send a simple response
+                conn.send(f"Hello from nftables test server port {self.port}\n".encode())
+                conn.close()
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"[{datetime.now()}] TCP port {self.port} error: {e}")
+                break
+
+    def _start_udp(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind(('0.0.0.0', self.port))
+        self.socket.settimeout(1.0)
+        self.running = True
+        print(f"[{datetime.now()}] UDP server listening on port {self.port}")
+        while self.running:
+            try:
+                data, addr = self.socket.recvfrom(1024)
+                self.packets_received += 1
+                print(f"[{datetime.now()}] UDP packet #{self.packets_received} from {addr} to port {self.port}: {data.decode()[:50]}...")
+                # Send response back
+                self.socket.sendto(f"ACK from port {self.port}".encode(), addr)
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"[{datetime.now()}] UDP port {self.port} error: {e}")
+                break
             
     def stop(self):
         self.running = False
@@ -88,8 +93,8 @@ class NFTablesTestServer:
     def load_nftables_rules(self):
         print(f"[{datetime.now()}] Loading nftables configuration...")
         try:
-            result = subprocess.run(['nft', '-f', '/etc/nftables/nftables.conf'], 
-                                  capture_output=True, text=True, check=True)
+            subprocess.run(['nft', '-f', '/etc/nftables/nftables.conf'], 
+                           capture_output=True, text=True, check=True)
             print(f"[{datetime.now()}] ✓ NFTables rules loaded successfully")
             return True
         except subprocess.CalledProcessError as e:
@@ -155,7 +160,7 @@ class NFTablesTestServer:
                 sock.settimeout(2)
                 sock.sendto(b"test packet", ('127.0.0.1', port))
                 try:
-                    response, addr = sock.recvfrom(1024)
+                    response, _ = sock.recvfrom(1024)
                     print(f"[{datetime.now()}] ✓ UDP port {port} responded: {response.decode()}")
                 except socket.timeout:
                     print(f"[{datetime.now()}] ? UDP port {port} sent packet (no response - may be filtered)")

@@ -7,7 +7,7 @@ import random
 import json
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 import sys
 
 @dataclass
@@ -20,11 +20,14 @@ class PlayerStats:
     udp_timeouts: int = 0
     total_bytes_sent: int = 0
     total_bytes_received: int = 0
-    errors: List[str] = None
-    
+    errors: Optional[List[str]] = None
+    ping_times: Optional[List[float]] = None  # Store ping round-trip times in ms
+
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
+        if self.ping_times is None:
+            self.ping_times = []
 
 class GameClient:
     def __init__(self, player_id: int, server_ip: str = "nftables-test-container"):
@@ -32,7 +35,7 @@ class GameClient:
         self.server_ip = server_ip
         self.stats = PlayerStats(player_id)
         self.running = False
-        
+
         # Game server ports from nftables config
         self.game_ports = {
             'ut_servers': [6962, 6963, 9696, 9697, 7787, 7797],
@@ -40,9 +43,28 @@ class GameClient:
             'tournament': [5858, 5859, 4848, 4849],
             'special': [6669, 6670, 6979, 6996, 6997, 8888, 8889, 9669, 9670, 19999, 19998]
         }
-        
+
         # TCP ports to test
         self.tcp_ports = [21, 1194, 6567, 19999]
+
+    def ping_server(self, count=1, timeout=1.0):
+        """Ping the server using a UDP echo and measure round-trip time in ms."""
+        port = 9696  # Use a known open UDP port
+        for _ in range(count):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(timeout)
+                message = f"ping-{self.player_id}-{time.time()}".encode()
+                start = time.time()
+                sock.sendto(message, (self.server_ip, port))
+                _data, _addr = sock.recvfrom(1024)
+                end = time.time()
+                rtt = (end - start) * 1000.0  # ms
+                self.stats.ping_times.append(rtt)
+            except Exception:
+                self.stats.ping_times.append(None)
+            finally:
+                sock.close()
         
     def log(self, message):
         print(f"[{datetime.now()}] Player {self.player_id}: {message}")
@@ -51,11 +73,18 @@ class GameClient:
         """Simulate realistic game traffic patterns"""
         self.running = True
         self.log("Starting game simulation...")
-        
+
         start_time = time.time()
         end_time = start_time + duration_seconds
-        
+        last_ping = 0
+        ping_interval = 5  # seconds
+
         while time.time() < end_time and self.running:
+            now = time.time()
+            # Ping server every ping_interval seconds
+            if now - last_ping > ping_interval:
+                self.ping_server(count=1)
+                last_ping = now
             try:
                 # Simulate different game activities with different probabilities
                 activity = random.choices(
@@ -131,7 +160,7 @@ class GameClient:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
-            start_time = time.time()
+            _ = time.time()
             
             result = sock.connect_ex((self.server_ip, port))
             if result == 0:
@@ -145,7 +174,7 @@ class GameClient:
                 try:
                     response = sock.recv(1024)
                     self.stats.total_bytes_received += len(response)
-                except:
+                except Exception:
                     pass
             else:
                 self.stats.tcp_failed += 1
@@ -168,7 +197,7 @@ class GameClient:
             self.stats.total_bytes_sent += len(packet_data)
             
             try:
-                response, addr = sock.recvfrom(1024)
+                response, _ = sock.recvfrom(1024)
                 self.stats.udp_responses += 1
                 self.stats.total_bytes_received += len(response)
             except socket.timeout:
@@ -181,6 +210,11 @@ class GameClient:
             
     def get_stats_dict(self):
         """Return stats as dictionary for JSON serialization"""
+        # Calculate ping stats
+        valid_pings = [p for p in self.stats.ping_times if p is not None]
+        ping_min = min(valid_pings) if valid_pings else None
+        ping_max = max(valid_pings) if valid_pings else None
+        ping_avg = sum(valid_pings) / len(valid_pings) if valid_pings else None
         return {
             'player_id': self.stats.player_id,
             'tcp_connections': self.stats.tcp_connections,
@@ -191,7 +225,11 @@ class GameClient:
             'total_bytes_sent': self.stats.total_bytes_sent,
             'total_bytes_received': self.stats.total_bytes_received,
             'error_count': len(self.stats.errors),
-            'errors': self.stats.errors[:10]  # Limit errors in output
+            'errors': self.stats.errors[:10],  # Limit errors in output
+            'ping_min_ms': ping_min,
+            'ping_max_ms': ping_max,
+            'ping_avg_ms': ping_avg,
+            'ping_count': len(valid_pings)
         }
 
 class GameClientManager:
@@ -235,6 +273,7 @@ class GameClientManager:
         print("="*60)
         
         # Aggregate statistics
+        all_pings = [p for c in self.clients for p in c.stats.ping_times if p is not None]
         total_stats = {
             'total_players': len(self.clients),
             'total_tcp_connections': sum(c.stats.tcp_connections for c in self.clients),
@@ -244,7 +283,11 @@ class GameClientManager:
             'total_udp_timeouts': sum(c.stats.udp_timeouts for c in self.clients),
             'total_bytes_sent': sum(c.stats.total_bytes_sent for c in self.clients),
             'total_bytes_received': sum(c.stats.total_bytes_received for c in self.clients),
-            'total_errors': sum(len(c.stats.errors) for c in self.clients)
+            'total_errors': sum(len(c.stats.errors) for c in self.clients),
+            'ping_min_ms': min(all_pings) if all_pings else None,
+            'ping_max_ms': max(all_pings) if all_pings else None,
+            'ping_avg_ms': sum(all_pings)/len(all_pings) if all_pings else None,
+            'ping_count': len(all_pings)
         }
         
         # Calculate rates and percentages
@@ -279,6 +322,10 @@ class GameClientManager:
         print(f"  Packets per Second: {packets_per_second:.2f}")
         print(f"  Bytes per Second: {total_stats['total_bytes_sent']/self.duration:.2f}")
         print(f"  Total Errors: {total_stats['total_errors']}")
+        if total_stats['ping_count']:
+            print(f"  Ping (ms): min={total_stats['ping_min_ms']:.2f}, max={total_stats['ping_max_ms']:.2f}, avg={total_stats['ping_avg_ms']:.2f}, count={total_stats['ping_count']}")
+        else:
+            print("  Ping (ms): No data")
         print()
         
         # Per-player breakdown (top 5 most active)
@@ -324,7 +371,7 @@ def main():
     server_ip = sys.argv[2] if len(sys.argv) > 2 else "nftables-test-container"
     duration = int(sys.argv[3]) if len(sys.argv) > 3 else 120
     
-    print(f"Game Client Simulator")
+    print("Game Client Simulator")
     print(f"Players: {num_players}, Server: {server_ip}, Duration: {duration}s")
     
     manager = GameClientManager(num_players, server_ip, duration)
