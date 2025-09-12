@@ -58,6 +58,15 @@ def format_timestamp(timestamp_str):
     except ValueError:
         return timestamp_str
 
+def get_session_duration(config):
+    """Get session duration from config, with fallbacks."""
+    return config.get('duration_seconds', 0) or config.get('original_duration_setting', 0) or 0
+
+def calculate_throughput(bytes_sent, config):
+    """Calculate throughput using proper duration."""
+    duration = get_session_duration(config) or 1  # Avoid division by zero
+    return bytes_sent / duration if duration > 0 else 0
+
 def get_server_load_info(total_traffic):
     """Get server load level and color based on traffic"""
     if total_traffic < 100:
@@ -99,7 +108,9 @@ def display_client_overview_metrics(config, summary):
     
     with col1:
         st.metric("Players", config.get('num_players', 0))
-        st.metric("Duration", f"{config.get('duration_seconds', 0)}s")
+        # Use actual session duration if available, otherwise fall back to original setting
+        duration = config.get('duration_seconds', 0) or config.get('original_duration_setting', 0)
+        st.metric("Duration", f"{duration}s")
         
     with col2:
         tcp_total = summary.get('total_tcp_connections', 0)
@@ -493,7 +504,9 @@ def display_client_report(data):
     
     with col1:
         st.metric("Players", config.get('num_players', 0))
-        st.metric("Duration", f"{config.get('duration_seconds', 0)}s")
+        # Use actual session duration if available, otherwise fall back to original setting
+        duration = config.get('duration_seconds', 0) or config.get('original_duration_setting', 0)
+        st.metric("Duration", f"{duration}s")
         
     with col2:
         tcp_total = summary.get('total_tcp_connections', 0)
@@ -673,7 +686,7 @@ def display_aggregated_statistics(client_data, server_data):
         st.metric("Total Clients", total_clients)
         
     with col2:
-        test_duration = client_data.get('simulation_config', {}).get('duration_seconds', 0)
+        test_duration = get_session_duration(client_data.get('simulation_config', {}))
         st.metric("Test Duration", f"{test_duration}s")
         
     with col3:

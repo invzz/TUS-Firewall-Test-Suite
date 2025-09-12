@@ -18,9 +18,12 @@ class GameClientManager:
         self.connections_per_player = connections_per_player  # Multiple concurrent connections per player
         self.clients = []
         self.threads = []
+        self.session_start_time = None
+        self.session_end_time = None
         
     def start_simulation(self):
         """Start the multi-client simulation with multiple connections per player."""
+        self.session_start_time = time.time()
         total_connections = self.num_players * self.connections_per_player
         print(f"=== Starting {self.num_players} Player Simulation ({total_connections} total connections) at {datetime.now()} ===")
         print(f"Target Server: {self.server_ip}")
@@ -48,7 +51,10 @@ class GameClientManager:
         for thread in self.threads:
             thread.join()
             
+        self.session_end_time = time.time()
+        session_duration = self.session_end_time - self.session_start_time if self.session_start_time else 0
         print(f"All connections finished at {datetime.now()}")
+        print(f"Session duration: {session_duration:.1f} seconds")
         
     def generate_report(self):
         """Generate comprehensive client-side report"""
@@ -157,13 +163,21 @@ class GameClientManager:
         
     def _save_json_report(self, summary_stats):
         """Save detailed JSON report"""
+        # Calculate actual session duration
+        actual_duration = 0
+        if self.session_start_time and self.session_end_time:
+            actual_duration = self.session_end_time - self.session_start_time
+        
         report_data = {
             'timestamp': datetime.now().isoformat(),
             'simulation_config': {
                 'num_players': self.num_players,
                 'mode': 'continuous_until_server_down',
                 'original_duration_setting': self.duration,  # Keep for compatibility
-                'target_server': self.server_ip
+                'duration_seconds': int(actual_duration),    # Actual session duration for dashboard
+                'session_duration': actual_duration,         # Exact duration in seconds
+                'target_server': self.server_ip,
+                'connections_per_player': self.connections_per_player
             },
             'summary_stats': summary_stats,
             'player_details': [client.stats.get_stats_dict() for client in self.clients]
