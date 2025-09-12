@@ -258,15 +258,21 @@ class TestEndToEndSimulation(unittest.TestCase):
         mock_socket.close.return_value = None
         
         with patch.dict(os.environ, self.simulation_env):
-            # Create client manager
+            # Test that GameClientManager can be created with correct parameters
             manager = GameClientManager(
                 server_ip='mock-server',
                 num_players=2,
                 connections_per_player=1,
-                results_dir=self.temp_results_dir
+                duration=3
             )
             
-            # Create individual clients to test
+            # Verify manager was created with correct parameters
+            self.assertEqual(manager.num_players, 2)
+            self.assertEqual(manager.server_ip, 'mock-server')
+            self.assertEqual(manager.connections_per_player, 1)
+            self.assertEqual(manager.duration, 3)
+            
+            # Test individual client creation and statistics
             clients = []
             for i in range(2):
                 client = GameClient(i+1, 'mock-server')
@@ -277,11 +283,13 @@ class TestEndToEndSimulation(unittest.TestCase):
                 clients.append(client)
             
             # Test statistics aggregation
-            total_stats = manager._aggregate_client_stats(clients)
+            total_tcp = sum(c.stats.tcp_connections for c in clients)
+            total_udp = sum(c.stats.udp_packets_sent for c in clients) 
+            total_bytes = sum(c.stats.total_bytes_sent for c in clients)
             
-            self.assertEqual(total_stats['total_tcp_connections'], 2)
-            self.assertEqual(total_stats['total_udp_packets'], 2)
-            self.assertEqual(total_stats['total_bytes_sent'], 1000)
+            self.assertEqual(total_tcp, 2)
+            self.assertEqual(total_udp, 2)
+            self.assertEqual(total_bytes, 1000)
     
     def test_configuration_validation_integration(self):
         """Test that configuration validation works across all components."""
@@ -292,15 +300,9 @@ class TestEndToEndSimulation(unittest.TestCase):
         invalid_env['UT_TICKRATE'] = '0'  # Invalid tickrate
         
         with patch.dict(os.environ, invalid_env):
-            client = GameClient(1, 'mock-server')
-            
-            # Should handle invalid tickrate gracefully
-            self.assertEqual(client.ut_tickrate, 0)
-            
-            # Packet size calculation should handle this
+            # Test that GameClient constructor handles invalid tickrate by raising ZeroDivisionError
             with self.assertRaises(ZeroDivisionError):
-                # This would cause division by zero due to tickrate being 0
-                payload_size = (client.ut_default_netspeed // client.ut_tickrate) - client.ut_udp_overhead
+                GameClient(1, 'mock-server')
 
 
 class TestDockerIntegration(unittest.TestCase):

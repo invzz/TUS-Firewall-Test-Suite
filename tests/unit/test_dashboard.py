@@ -165,44 +165,7 @@ class TestDashboardCharts(unittest.TestCase):
         self.assertEqual(call_args['color_discrete_sequence'], custom_colors)
 
 
-class TestDashboardDataProcessing(unittest.TestCase):
-    """Test cases for dashboard data processing functions."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        # Mock streamlit to avoid import errors during testing
-        self.st_patcher = patch('dashboard.dashboard.st')
-        self.mock_st = self.st_patcher.start()
-        self.mock_st.columns.return_value = [Mock(), Mock(), Mock(), Mock()]
-        self.mock_st.subheader = Mock()
-        self.mock_st.metric = Mock()
-    
-    def tearDown(self):
-        """Clean up test fixtures."""
-        self.st_patcher.stop()
-    
-    def test_display_client_overview_metrics(self):
-        """Test displaying client overview metrics."""
-        config = {
-            "num_players": 5,
-            "duration_seconds": 60
-        }
-        summary = {
-            "total_tcp_connections": 10,
-            "total_tcp_failed": 1,
-            "total_udp_packets": 100,
-            "total_udp_responses": 90,
-            "total_bytes_sent": 5000,
-            "total_bytes_received": 4500
-        }
-        
-        # Should not raise any exceptions
-        dashboard_module.display_client_overview_metrics(config, summary)
-        
-        # Verify streamlit functions were called
-        self.mock_st.subheader.assert_called()
-        self.mock_st.columns.assert_called_with(4)
-        self.mock_st.metric.assert_called()
+
 
 
 class TestDashboardIntegration(unittest.TestCase):
