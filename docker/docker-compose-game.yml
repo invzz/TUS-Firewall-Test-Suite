@@ -1,0 +1,44 @@
+# Docker Compose for Game Server + Client Simulation
+
+services:
+  # NFTables Game Server
+  nftables-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.server
+    container_name: nftables-server-container
+    privileged: true
+    networks:
+      - game-network
+    volumes:
+      - ../config/nftables.conf:/etc/nftables/nftables.conf:ro
+      - ../src/server/nftables-test-server.py:/usr/local/bin/nftables-test-server.py:ro
+      - ../results:/shared
+    environment:
+      - TERM=xterm-256color
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: python3 /usr/local/bin/nftables-test-server.py game 120
+    
+  # Game Client Simulator
+  game-client:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.client
+    container_name: game-client-container
+    depends_on:
+      - nftables-server
+    networks:
+      - game-network
+    volumes:
+      - ../src/client/game-client-simulator.py:/usr/local/bin/game-client-simulator.py:ro
+      - ../results:/shared
+    environment:
+      - TERM=xterm-256color
+    command: >
+      sh -c "sleep 5 && python3 /usr/local/bin/game-client-simulator.py 18 nftables-server-container 120"
+
+networks:
+  game-network:
+    driver: bridge

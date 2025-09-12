@@ -1,0 +1,39 @@
+FROM ubuntu:22.04
+
+# Install nftables and network utilities
+RUN apt-get update && apt-get install -y \
+    curl \
+    dnsutils \
+    hping3 \
+    iproute2 \
+    iptables \
+    iputils-ping \
+    net-tools \
+    netcat-openbsd \
+    nftables \
+    nmap \
+    python3 \
+    tcpdump \
+    telnet \
+    wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /etc/nftables
+
+# Copy the nftables configuration
+COPY config/nftables.conf /etc/nftables/nftables.conf
+
+# Copy test scripts
+COPY src/utils/test-nftables.sh /usr/local/bin/test-nftables.sh
+COPY src/utils/enhanced-test.sh /usr/local/bin/enhanced-test.sh
+COPY src/server/nftables-test-server.py /usr/local/bin/nftables-test-server.py
+COPY scripts/run-auto-tests.sh /usr/local/bin/run-auto-tests.sh
+RUN chmod +x /usr/local/bin/test-nftables.sh \
+    /usr/local/bin/enhanced-test.sh \
+    /usr/local/bin/run-auto-tests.sh \
+    /usr/local/bin/nftables-test-server.py
+
+# Set working directory
+WORKDIR /root
+
+# Run auto-tests by default
+CMD ["/usr/local/bin/run-auto-tests.sh"]
