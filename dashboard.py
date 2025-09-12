@@ -155,6 +155,104 @@ def display_ping_analysis(summary):
     else:
         st.info("ℹ️ Ping data not available - consider enabling ping collection in the client simulator")
 
+def display_ping_time_series(data):
+    """Display ping latency time-series chart"""
+    player_details = data.get('player_details', [])
+    
+    # Collect all ping history data
+    ping_data = []
+    for player in player_details:
+        ping_history = player.get('ping_history', [])
+        player_id = player.get('player_id', 'unknown')
+        
+        for ping_entry in ping_history:
+            ping_data.append({
+                'timestamp': pd.to_datetime(ping_entry.get('timestamp')),
+                'ping_ms': ping_entry.get('ping_ms'),
+                'player_id': player_id
+            })
+    
+    if ping_data:
+        df_ping = pd.DataFrame(ping_data)
+        
+        # Create time-series chart
+        st.subheader("📊 Ping Latency Over Time")
+        
+        # Aggregate by time windows for better visualization
+        df_ping_agg = df_ping.set_index('timestamp').resample('30S')['ping_ms'].agg(['mean', 'min', 'max']).reset_index()
+        
+        fig_ping = go.Figure()
+        
+        # Add mean line
+        fig_ping.add_trace(go.Scatter(
+            x=df_ping_agg['timestamp'],
+            y=df_ping_agg['mean'],
+            mode='lines+markers',
+            name='Average Ping',
+            line=dict(color='#1f77b4', width=2),
+            marker=dict(size=4)
+        ))
+        
+        # Add min/max envelope
+        fig_ping.add_trace(go.Scatter(
+            x=df_ping_agg['timestamp'],
+            y=df_ping_agg['max'],
+            mode='lines',
+            name='Max Ping',
+            line=dict(width=0),
+            showlegend=False
+        ))
+        
+        fig_ping.add_trace(go.Scatter(
+            x=df_ping_agg['timestamp'],
+            y=df_ping_agg['min'],
+            mode='lines',
+            name='Min/Max Range',
+            fill='tonexty',
+            fillcolor='rgba(31, 119, 180, 0.2)',
+            line=dict(width=0)
+        ))
+        
+        fig_ping.update_layout(
+            title="Network Latency Time Series (30s intervals)",
+            xaxis_title="Time",
+            yaxis_title="Ping Latency (ms)",
+            hovermode='x unified',
+            height=400
+        )
+        
+        st.plotly_chart(fig_ping, use_container_width=True)
+        
+        # Show individual player ping scatter plot
+        if len(df_ping) < 1000:  # Only show if not too many points
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Individual pings scatter plot
+                fig_scatter = px.scatter(
+                    df_ping, 
+                    x='timestamp', 
+                    y='ping_ms',
+                    color='player_id',
+                    title="Individual Ping Measurements",
+                    labels={'ping_ms': 'Ping (ms)', 'timestamp': 'Time'}
+                )
+                fig_scatter.update_traces(marker=dict(size=3))
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            with col2:
+                # Ping distribution histogram
+                fig_hist = px.histogram(
+                    df_ping,
+                    x='ping_ms',
+                    nbins=20,
+                    title="Ping Latency Distribution",
+                    labels={'ping_ms': 'Ping (ms)', 'count': 'Frequency'}
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+    else:
+        st.info("📊 No ping history data available for time-series analysis")
+
 def display_traffic_analysis_charts(summary):
     """Display traffic analysis charts section"""
     st.subheader("📈 Traffic Analysis")
@@ -167,7 +265,7 @@ def display_traffic_analysis_charts(summary):
         udp_total = summary.get('total_udp_packets', 0)
         fig_protocol = create_protocol_chart(tcp_total, udp_total, "Protocol Distribution")
         if fig_protocol:
-            st.plotly_chart(fig_protocol, use_container_width=True)
+            st.plotly_chart(fig_protocol, width='stretch')
     
     # TCP Success Analysis  
     with col2:
@@ -175,7 +273,7 @@ def display_traffic_analysis_charts(summary):
         tcp_failed = summary.get('total_tcp_failed', 0)
         fig_tcp = create_success_chart(tcp_success, tcp_failed, "TCP Connection Success")
         if fig_tcp:
-            st.plotly_chart(fig_tcp, use_container_width=True)
+            st.plotly_chart(fig_tcp, width='stretch')
     
     # UDP Response Analysis
     with col3:
@@ -184,7 +282,7 @@ def display_traffic_analysis_charts(summary):
         fig_udp = create_success_chart(udp_responses, udp_timeouts, "UDP Response Analysis", 
                                      ['#A8E6CF', '#FFD93D'])
         if fig_udp:
-            st.plotly_chart(fig_udp, use_container_width=True)
+            st.plotly_chart(fig_udp, width='stretch')
 
 def display_efficiency_metrics(summary, config):
     """Display network efficiency metrics section"""
@@ -250,7 +348,7 @@ def display_player_details(data):
             title="Data Transfer by Player",
             barmode='group'
         )
-        st.plotly_chart(fig_bytes, use_container_width=True)
+        st.plotly_chart(fig_bytes, width='stretch')
         
     with col2:
         fig_udp_perf = px.bar(
@@ -260,11 +358,11 @@ def display_player_details(data):
             title="UDP Performance by Player",
             barmode='group'
         )
-        st.plotly_chart(fig_udp_perf, use_container_width=True)
-    
+        st.plotly_chart(fig_udp_perf, width='stretch')
+
     # Player details table
     st.subheader("📋 Detailed Player Statistics")
-    st.dataframe(df_players, use_container_width=True)
+    st.dataframe(df_players, width='stretch')
 
 def create_ping_timeline_chart(player_details):
     """Create a time-series chart showing ping over time for all clients"""
@@ -459,7 +557,7 @@ def display_time_series_analysis(data):
         if has_ping_data:
             ping_chart = create_ping_timeline_chart(player_details)
             if ping_chart:
-                st.plotly_chart(ping_chart, use_container_width=True)
+                st.plotly_chart(ping_chart, width='stretch')
         else:
             st.info("No ping time-series data available")
     
@@ -467,7 +565,7 @@ def display_time_series_analysis(data):
         if has_throughput_data:
             throughput_chart = create_throughput_timeline_chart(player_details)
             if throughput_chart:
-                st.plotly_chart(throughput_chart, use_container_width=True)
+                st.plotly_chart(throughput_chart, width='stretch')
         else:
             st.info("No throughput time-series data available")
     
@@ -480,13 +578,13 @@ def display_time_series_analysis(data):
         
         with col1:
             if ping_agg_fig:
-                st.plotly_chart(ping_agg_fig, use_container_width=True)
+                st.plotly_chart(ping_agg_fig, width='stretch')
             else:
                 st.info("No aggregated ping data available")
         
         with col2:
             if throughput_agg_fig:
-                st.plotly_chart(throughput_agg_fig, use_container_width=True)
+                st.plotly_chart(throughput_agg_fig, width='stretch')
             else:
                 st.info("No aggregated throughput data available")
 
@@ -529,14 +627,16 @@ def display_client_report(data):
         st.metric("Total Data Sent", f"{bytes_sent:,} bytes")
         st.metric("Avg Throughput", f"{throughput:.0f} bytes/s")
     
-    # Ping statistics if available
+    # Ping statistics if available  
     ping_min = summary.get('ping_min_ms')
     ping_max = summary.get('ping_max_ms')  
     ping_avg = summary.get('ping_avg_ms')
     ping_count = summary.get('ping_count', 0)
     
-    if ping_count > 0:
-        st.subheader("🏓 Network Latency Analysis")
+    # Debug information - show what we found
+    st.subheader("🏓 Network Latency Analysis")
+    
+    if ping_count > 0 and ping_min is not None:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Ping Count", ping_count)
@@ -546,6 +646,21 @@ def display_client_report(data):
             st.metric("Avg Latency", f"{ping_avg:.1f}ms" if ping_avg else "N/A")
         with col4:
             st.metric("Max Latency", f"{ping_max:.1f}ms" if ping_max else "N/A")
+        
+        # Show ping collection success message
+        st.success(f"✅ Ping data successfully collected from {ping_count} measurements")
+        
+        # Add ping time-series visualization
+        display_ping_time_series(data)
+        
+    else:
+        st.warning("⚠️ No ping data available in this report")
+        with st.expander("Debug Ping Data"):
+            st.write(f"ping_count: {ping_count}")
+            st.write(f"ping_min: {ping_min}")
+            st.write(f"ping_max: {ping_max}")
+            st.write(f"ping_avg: {ping_avg}")
+            st.write("Check that the server is running and responding to ping requests")
     
     # Enhanced Traffic Analysis
     st.subheader("� Traffic Analysis")
@@ -564,7 +679,7 @@ def display_client_report(data):
                 title="Protocol Distribution",
                 color_discrete_sequence=['#FF6B6B', '#4ECDC4']
             )
-            st.plotly_chart(fig_protocol, use_container_width=True)
+            st.plotly_chart(fig_protocol, width='stretch')
     
     with col2:
         # Connection Success Analysis  
@@ -578,7 +693,7 @@ def display_client_report(data):
                 title="TCP Connection Success",
                 color_discrete_sequence=['#95E1D3', '#F38BA8']
             )
-            st.plotly_chart(fig_tcp, use_container_width=True)
+            st.plotly_chart(fig_tcp, width='stretch')
     
     with col3:
         # UDP Response Analysis
@@ -592,8 +707,8 @@ def display_client_report(data):
                 title="UDP Response Analysis",
                 color_discrete_sequence=['#A8E6CF', '#FFD93D']
             )
-            st.plotly_chart(fig_udp, use_container_width=True)
-    
+            st.plotly_chart(fig_udp, width='stretch')
+
     # Network Efficiency Metrics
     st.subheader("⚡ Network Efficiency Metrics")
     
@@ -650,7 +765,7 @@ def display_client_report(data):
                 title="Data Transfer by Player",
                 barmode='group'
             )
-            st.plotly_chart(fig_bytes, use_container_width=True)
+            st.plotly_chart(fig_bytes, width='stretch')
             
         with col2:
             fig_udp_perf = px.bar(
@@ -978,7 +1093,7 @@ def main():
         selected_server = server_reports[selected_server_idx]
     
     # Display reports
-    tab1, tab2, tab3, tab4 = st.tabs(["🎮 Client Analysis", "🛡️ Server Analysis", "� Aggregated Stats", "�📄 Raw Data"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🎮 Client Analysis", "🛡️ Server Analysis", "Aggregated Stats", "Raw Data"])
     
     with tab1:
         if selected_client:

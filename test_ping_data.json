@@ -1,0 +1,33 @@
+{
+  "timestamp": "2024-01-01T12:00:00",
+  "simulation_config": {
+    "num_players": 5,
+    "duration_seconds": 60
+  },
+  "summary_stats": {
+    "ping_min_ms": 1.2,
+    "ping_max_ms": 15.8,
+    "ping_avg_ms": 5.4,
+    "ping_count": 12
+  },
+  "player_details": [
+    {
+      "player_id": "test-1",
+      "ping_count": 3,
+      "ping_history": [
+        {
+          "timestamp": "2024-01-01T12:00:01",
+          "ping_ms": 2.1
+        },
+        {
+          "timestamp": "2024-01-01T12:00:06",
+          "ping_ms": 3.4
+        },
+        {
+          "timestamp": "2024-01-01T12:00:11",
+          "ping_ms": 1.8
+        }
+      ]
+    }
+  ]
+}
