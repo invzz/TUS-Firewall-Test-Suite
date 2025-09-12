@@ -1,5 +1,9 @@
 FROM ubuntu:22.04
 
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
 # Install nftables and network utilities
 RUN apt-get update && apt-get install -y \
     curl \
@@ -33,7 +37,7 @@ COPY src/server/ ./server/
 COPY src/utils/ ./utils/
 
 # Copy main scripts to traditional locations for compatibility
-COPY scripts/run-auto-tests.sh /usr/local/bin/run-auto-tests.sh
+COPY scripts/linux/run-auto-tests.sh /usr/local/bin/run-auto-tests.sh
 COPY src/utils/test-nftables.sh /usr/local/bin/test-nftables.sh
 COPY src/utils/enhanced-test.sh /usr/local/bin/enhanced-test.sh
 

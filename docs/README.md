@@ -37,7 +37,7 @@ nftables-testing/
 Simulates 18 game players for 2 minutes with comprehensive reporting:
 
 ```bash
-./scripts/run-game-simulation.sh
+./scripts/linux/run-game-simulation.sh
 ```
 
 ### Option 2: Basic Testing
@@ -51,7 +51,7 @@ docker-compose -f docker/docker-compose.yml up --build
 For systems with nftables installed:
 
 ```bash
-sudo ./scripts/run-direct.sh
+sudo ./scripts/linux/run-direct.sh
 ```
 
 ## 📊 What Gets Tested

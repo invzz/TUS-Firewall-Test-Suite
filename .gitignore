@@ -27,6 +27,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Virtual environments
+venv/
+venv-dashboard/
+env/
+ENV/
+
 # Docker
 .docker/
 

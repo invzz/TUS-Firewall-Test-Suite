@@ -4,7 +4,7 @@ import socket
 import time
 import random
 from datetime import datetime
-from .player_stats import PlayerStats
+from player_stats import PlayerStats
 
 
 class GameClient:

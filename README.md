@@ -6,13 +6,13 @@ Professional firewall rule validation with realistic traffic simulation.
 
 ```bash
 # Complete game simulation (18 players, 2 minutes)
-./scripts/run-game-simulation.sh
+./scripts/linux/run-game-simulation.sh
 
 # Basic rule testing
 docker-compose -f docker/docker-compose.yml up --build
 
 # Direct Linux execution (requires sudo)
-sudo ./scripts/run-direct.sh
+sudo ./scripts/linux/run-direct.sh
 ```
 
 ## 📁 Project Structure

@@ -11,8 +11,8 @@ import subprocess
 import json
 from datetime import datetime
 
-from .port_listener import PortListener
-from .server_config import TCP_PORTS, UDP_PORTS, DEFAULT_TCP_PORTS, DEFAULT_UDP_PORTS, TEST_TCP_PORTS, TEST_UDP_PORTS
+from port_listener import PortListener
+from server_config import TCP_PORTS, UDP_PORTS, DEFAULT_TCP_PORTS, DEFAULT_UDP_PORTS, TEST_TCP_PORTS, TEST_UDP_PORTS
 
 
 class NFTablesTestServer:

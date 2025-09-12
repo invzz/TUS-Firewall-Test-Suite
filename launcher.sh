@@ -51,14 +51,16 @@ echo "🔥 NFTables Testing Framework"
 echo "================================"
 echo ""
 echo "Select testing mode:"
-echo "1. Complete Game Simulation [Recommended] 🎮"
-echo "2. Basic Rule Testing (no client simulation) 🛠️"
+echo "1. Complete Game Simulation (with Dashboard) [Recommended] 🎮"
+echo "2. Basic Rule Testing (with Dashboard) 🛠️"
 echo "3. Direct Linux Execution (requires sudo) 🐧"
 echo "4. Interactive Server Mode (keeps running) 🔄"
-echo "5. Show Project Structure 📁"
+echo "5. Dashboard Only (view existing results) 📊"
+echo "6. Local Dashboard (Python venv) �️"
+echo "7. Show Project Structure 📁"
 echo "0. Exit 👋"
 echo ""
-read -p "Enter your choice (0-5): " choice
+read -p "Enter your choice (0-7): " choice
 
 case $choice in
     1)
@@ -72,9 +74,9 @@ case $choice in
         echo "Starting direct execution (requires sudo)..."
         if [ "$EUID" -ne 0 ]; then
             echo "Switching to sudo..."
-            sudo ./scripts/run-direct.sh
+            sudo ./scripts/linux/run-direct.sh
         else
-            ./scripts/run-direct.sh
+            ./scripts/linux/run-direct.sh
         fi
         ;;
     4)
@@ -82,6 +84,16 @@ case $choice in
         KEEP_RUNNING=true docker-compose -f docker/docker-compose.yml up --build
         ;;
     5)
+        echo "Starting Dashboard Only..."
+        echo "This will show existing results from previous tests"
+        docker-compose -f docker/docker-compose-dashboard.yml up --build
+        ;;
+    6)
+        echo "Starting Local Dashboard with Virtual Environment..."
+        chmod +x scripts/linux/dashboard-launcher-venv.sh
+        ./scripts/linux/dashboard-launcher-venv.sh
+        ;;
+    7)
         echo ""
         echo "📁 Project Structure:"
         tree -L 3 -I 'results|__pycache__' 2>/dev/null || find . -maxdepth 3 -type d | head -20
