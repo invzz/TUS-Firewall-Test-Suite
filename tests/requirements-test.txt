@@ -14,6 +14,10 @@ coverage>=7.0.0
 # Mocking and fixtures
 responses>=0.23.0
 
+# Container integration testing
+testcontainers>=3.7.0
+docker>=6.0.0
+
 # Dashboard testing dependencies (optional)
 streamlit>=1.28.0
 plotly>=5.15.0

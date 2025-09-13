@@ -26,9 +26,6 @@ class GameClientManager:
         self.session_start_time = time.time()
         total_connections = self.num_players * self.connections_per_player
         print(f"=== Starting {self.num_players} Player Simulation ({total_connections} total connections) at {datetime.now()} ===")
-        print(f"Target Server: {self.server_ip}")
-        print(f"Connections per player: {self.connections_per_player}")
-        print("Mode: Maximum load - Continuous until server goes down")
         
         # Create multiple connection threads per player
         for player_id in range(1, self.num_players + 1):
@@ -45,8 +42,6 @@ class GameClientManager:
                 # Minimal stagger to avoid overwhelming connection setup
                 time.sleep(random.uniform(0.01, 0.05))
             
-        print(f"All {self.num_players} players with {total_connections} concurrent connections started in maximum load mode")
-        
         # Wait for all threads to complete
         for thread in self.threads:
             thread.join()

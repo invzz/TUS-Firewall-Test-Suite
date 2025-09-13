@@ -33,7 +33,26 @@ Check `results/` folder after testing:
 ✅ Comprehensive reporting  
 ✅ Rate limiting validation  
 ✅ Professional Docker setup  
+✅ Real container integration tests
+
+## 🧪 Testing
+
+```bash
+# Unit tests (fast)
+pytest tests/unit/ -v
+
+# Integration tests (with mocks)  
+pytest tests/integration/ -v -m "not container"
+
+# Container tests (real Docker containers)
+pytest tests/integration/test_containers.py -v
+
+# All tests
+pytest -v
+```
+
+See [Testcontainer Tests Documentation](docs/TESTCONTAINER_TESTS.md) for detailed testing guide.
 
 ---
 
-**Quick Links:** [Documentation](docs/README.md) | [Configuration](config/) | [Scripts](scripts/)
+**Quick Links:** [Documentation](docs/README.md) | [Testing Guide](docs/TESTCONTAINER_TESTS.md) | [Configuration](config/) | [Scripts](scripts/)

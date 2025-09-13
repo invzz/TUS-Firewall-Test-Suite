@@ -1,7 +1,7 @@
-# Docker Compose for Game Server + Client Simulation
+# Docker Compose for Testing - exposes shutdown notification ports to host
 
 services:
-  # NFTables Game Server
+  # NFTables Game Server (with exposed shutdown ports for testing)
   nftables-server:
     build:
       context: .
@@ -10,6 +10,18 @@ services:
     privileged: true
     networks:
       - game-network
+    ports:
+      # Expose shutdown notification ports for host-based testing
+      - "7778:7778/udp"
+      - "7779:7779/udp"
+      - "7780:7780/udp"
+      - "7781:7781/udp"
+      - "7782:7782/udp"
+      - "7783:7783/udp"
+      - "7784:7784/udp"
+      - "7785:7785/udp"
+      - "7786:7786/udp"
+      - "7787:7787/udp"
     volumes:
       - ./configs/nftables/nftables.conf:/etc/nftables/nftables.conf:ro
       - ./results:/shared
@@ -48,34 +60,6 @@ services:
       - UT_MAX_NETSPEED=${UT_MAX_NETSPEED:-100000}        # Maximum netspeed (bytes/sec)
     command: >
       sh -c "sleep 5 && python3 -m src.client.game-client-simulator"
-  
-  # Streamlit Dashboard
-  dashboard:
-    build:
-      context: .
-      dockerfile: src/dashboard/Dockerfile
-    container_name: tus-dashboard-container
-    depends_on:
-      - nftables-server
-      - game-client
-    networks:
-      - game-network
-    ports:
-      - "8501:8501"  # Streamlit dashboard port
-    volumes:
-      - ./results:/app/results:ro  # Read-only access to results
-    environment:
-      - PYTHONUNBUFFERED=1                              # Force unbuffered output for real-time logging
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
 networks:
   game-network:

@@ -5,19 +5,22 @@ Port listener module for handling TCP and UDP connections.
 """
 
 import socket
+import sys
 from datetime import datetime
 
 
 class PortListener:
     """Handles listening on a specific port for either TCP or UDP traffic."""
     
-    def __init__(self, port, protocol='tcp'):
+    def __init__(self, port, protocol='tcp', client_callback=None):
         self.port = port
         self.protocol = protocol.lower()
         self.socket = None
         self.running = False
         self.connections = 0
         self.packets_received = 0
+        self.udp_clients = set()  # Track unique UDP client IPs
+        self.client_callback = client_callback  # Callback to report client IPs
 
     def start(self):
         """Start listening on the configured port and protocol."""
@@ -26,8 +29,6 @@ class PortListener:
                 self._start_tcp()
             elif self.protocol == 'udp':
                 self._start_udp()
-            else:
-                print(f"[{datetime.now()}] Unknown protocol: {self.protocol}")
         except Exception as e:
             print(f"[{datetime.now()}] Failed to start {self.protocol.upper()} server on port {self.port}: {e}")
 
@@ -38,13 +39,13 @@ class PortListener:
         self.socket.bind(('0.0.0.0', self.port))
         self.socket.listen(5)
         self.running = True
-        print(f"[{datetime.now()}] TCP server listening on port {self.port}")
         
         while self.running:
             try:
                 conn, addr = self.socket.accept()
                 self.connections += 1
-                print(f"[{datetime.now()}] TCP connection #{self.connections} from {addr} to port {self.port}")
+                print(f"[{datetime.now()}] Client connected to TCP/{self.port} from {addr[0]}:{addr[1]} (#{self.connections})")
+                sys.stdout.flush()
                 # Send a simple response
                 conn.send(f"Hello from nftables test server port {self.port}\n".encode())
                 conn.close()
@@ -61,13 +62,24 @@ class PortListener:
         self.socket.bind(('0.0.0.0', self.port))
         self.socket.settimeout(1.0)
         self.running = True
-        print(f"[{datetime.now()}] UDP server listening on port {self.port}")
         
         while self.running:
             try:
-                data, addr = self.socket.recvfrom(1024)
+                _, addr = self.socket.recvfrom(1024)
                 self.packets_received += 1
-                print(f"[{datetime.now()}] UDP packet #{self.packets_received} from {addr} to port {self.port}: {data.decode()[:50]}...")
+                
+                # Track new UDP clients
+                client_ip = addr[0]
+                if client_ip not in self.udp_clients:
+                    self.udp_clients.add(client_ip)
+                    self.connections += 1  # Count unique clients as "connections"
+                    print(f"[{datetime.now()}] Client connected to UDP/{self.port} from {addr[0]}:{addr[1]} (#{self.connections})")
+                    sys.stdout.flush()
+                    
+                    # Report client IP to server for shutdown targeting
+                    if self.client_callback:
+                        self.client_callback(client_ip)
+                
                 # Send response back
                 self.socket.sendto(f"ACK from port {self.port}".encode(), addr)
             except socket.timeout:

@@ -39,13 +39,7 @@ if "%env_choice%"=="1" (
     docker compose --env-file .env.stress -f compose.yml up --build --force-recreate
 ) else if "%env_choice%"=="4" (
     echo Starting performance testing configuration...
-    echo WARNING: This will use significant system resources!
-    set /p confirm="Continue? (y/N): "
-    if /i "%confirm%"=="y" (
-        docker compose --env-file .env.performance -f compose.yml up --build --force-recreate
-    ) else (
-        echo Performance test cancelled.
-    )
+    docker compose --env-file .env.performance -f compose.yml up --build --force-recreate
 ) else if "%env_choice%"=="5" (
     echo Starting authentic UT server specification testing...
     echo Using real server specs for authentic network simulation

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 import socket
+import sys
 import time
 import random
 import os
+import threading
 from datetime import datetime
 from .player_stats import PlayerStats
 
@@ -27,6 +29,11 @@ class GameClient:
         self.ut_tick_interval = 1.0 / self.ut_tickrate  # Seconds per tick
         self.stats = PlayerStats(player_id)
         self.running = False
+        self.received_shutdown = False
+        
+        # Setup shutdown listener
+        self.shutdown_listener_thread = None
+        self.shutdown_socket = None
 
         # Game server ports from nftables config
         self.game_ports = {
@@ -74,7 +81,82 @@ class GameClient:
         
     def log(self, message):
         """Log a message with timestamp and player ID."""
-        print(f"[{datetime.now()}] Player {self.player_id}: {message}")
+        # Only log shutdown-related messages to avoid spam
+        if any(keyword in message.lower() for keyword in ['shutdown', 'stopping', 'down', 'disconnect']):
+            print(f"[{datetime.now()}] Player {self.player_id}: {message}")
+        
+    def start_shutdown_listener(self):
+        """Start listening for server shutdown notifications."""
+        def listen_for_shutdown():
+            self._setup_shutdown_socket()
+            self._listen_for_shutdown_messages()
+            self._cleanup_shutdown_socket()
+        
+        self.shutdown_listener_thread = threading.Thread(target=listen_for_shutdown, daemon=True)
+        self.shutdown_listener_thread.start()
+        
+    def _setup_shutdown_socket(self):
+        """Setup the shutdown listening socket."""
+        try:
+            # Use dedicated shutdown notification port with player-specific offset
+            # This avoids port conflicts when multiple clients run in same container
+            # Parse player_id which can be string like "1-1" or just "1"
+            try:
+                if '-' in str(self.player_id):
+                    player_num = int(str(self.player_id).split('-')[0])
+                else:
+                    player_num = int(self.player_id)
+            except (ValueError, IndexError):
+                player_num = 1  # Default fallback
+                
+            listen_port = 7778 + (player_num % 10)  # 7778-7787
+            self.shutdown_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.shutdown_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.shutdown_socket.bind(('0.0.0.0', listen_port))
+            self.shutdown_socket.settimeout(1.0)
+            self.log(f"Shutdown listener started on port {listen_port}")
+        except Exception as e:
+            self.log(f"Failed to setup shutdown listener: {e}")  # Better error visibility
+            
+    def _listen_for_shutdown_messages(self):
+        """Listen for shutdown messages from server."""
+        print(f"[{datetime.now()}] 🎯 Player {self.player_id}: Shutdown listener is active and waiting for messages...")
+        sys.stdout.flush()
+        
+        message_count = 0
+        while self.running and not self.received_shutdown:
+            try:
+                data, addr = self.shutdown_socket.recvfrom(1024)
+                message = data.decode().strip()
+                message_count += 1
+                print(f"[{datetime.now()}] 📨 Player {self.player_id}: Received message #{message_count} from {addr}: '{message}'")
+                sys.stdout.flush()
+                
+                if message == "SERVER_SHUTDOWN":
+                    print(f"[{datetime.now()}] 📢 Player {self.player_id}: Received shutdown notification from {addr[0]} - preparing for graceful shutdown")
+                    sys.stdout.flush()
+                    self.received_shutdown = True
+                    break
+                else:
+                    print(f"[{datetime.now()}] ⚠️ Player {self.player_id}: Unexpected message: '{message}' (expected 'SERVER_SHUTDOWN')")
+                    sys.stdout.flush()
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:  # Only log errors if we're still supposed to be running
+                    self.log(f"Error in shutdown listener: {e}")
+                break
+        
+        print(f"[{datetime.now()}] 🔚 Player {self.player_id}: Shutdown listener stopped (received_shutdown={self.received_shutdown}, running={self.running})")
+        sys.stdout.flush()
+                
+    def _cleanup_shutdown_socket(self):
+        """Clean up the shutdown socket."""
+        if self.shutdown_socket:
+            try:
+                self.shutdown_socket.close()
+            except Exception:
+                pass
         
     def is_server_available(self):
         """Check if server is still available by attempting a quick connection"""
@@ -128,66 +210,99 @@ class GameClient:
         """Simulate continuous game traffic until server becomes unavailable"""
         self.running = True
         self.log("Starting continuous game simulation (will run until server goes down)...")
-        self.log(f"Authentic UT specs: {self.ut_tickrate}Hz tickrate, {self.ut_default_netspeed}-{self.ut_max_netspeed} netspeed, {self.ut_udp_overhead}B overhead")
-        self.log(f"Packet sizes: {self.ut_default_payload}-{self.ut_max_payload} bytes payload ({self.ut_default_payload + self.ut_udp_overhead}-{self.ut_max_payload + self.ut_udp_overhead} total)")
+        self.log("UT specs: {}Hz tickrate, {}-{} netspeed, {}B overhead".format(
+            self.ut_tickrate, self.ut_default_netspeed, self.ut_max_netspeed, self.ut_udp_overhead))
+        self.log("Packet sizes: {}-{} bytes payload ({}-{} total)".format(
+            self.ut_default_payload, self.ut_max_payload, 
+            self.ut_default_payload + self.ut_udp_overhead, self.ut_max_payload + self.ut_udp_overhead))
 
+        # Start listening for server shutdown notifications
+        self.start_shutdown_listener()
+        
+        # Give shutdown listener time to properly bind to port
+        time.sleep(0.5)
+        
         start_time = time.time()
-        last_ping = 0
-        last_server_check = 0
-        last_throughput_snapshot = 0
-        ping_interval = 2  # More frequent ping collection (every 2 seconds)
-        server_check_interval = 5   # Check server availability every 5 seconds (more responsive)
-        throughput_snapshot_interval = 2  # Record throughput every 2 seconds
-        consecutive_failures = 0
-        max_consecutive_failures = 8  # Server considered down after 8 consecutive failures (more tolerant for fast checks)
+        
+        try:
+            last_ping = 0
+            last_server_check = 0
+            last_throughput_snapshot = 0
+            ping_interval = 2  # More frequent ping collection (every 2 seconds)
+            server_check_interval = 2   # Check server availability every 2 seconds (faster detection)
+            throughput_snapshot_interval = 2  # Record throughput every 2 seconds
+            consecutive_failures = 0
+            max_consecutive_failures = 2  # Server considered down after 2 consecutive failures (faster)
 
-        while self.running:
-            now = time.time()
-            
-            # Ping server periodically for latency measurement
-            if now - last_ping > ping_interval:
-                self.ping_server(count=1)
-                last_ping = now
-            
-            # Record throughput snapshot periodically
-            if now - last_throughput_snapshot > throughput_snapshot_interval:
-                self.stats.record_throughput_snapshot()
-                last_throughput_snapshot = now
-            
-            # Check server availability periodically
-            if now - last_server_check > server_check_interval:
-                consecutive_failures = self._check_server_status(
-                    consecutive_failures, max_consecutive_failures, start_time, now)
-                    
-                if consecutive_failures >= max_consecutive_failures:
-                    self.log("Server appears to be down - stopping simulation")
+            while self.running:
+                now = time.time()
+                
+                # Check for server shutdown notification (highest priority)
+                if self.received_shutdown:
+                    print(f"[{datetime.now()}] 📢 Player {self.player_id}: Server shutdown notification received - stopping simulation (REASON: Graceful server shutdown)")
+                    sys.stdout.flush()
                     break
+                
+                # Ping server periodically for latency measurement
+                if now - last_ping > ping_interval:
+                    self.ping_server(count=1)
+                    last_ping = now
+                
+                # Record throughput snapshot periodically
+                if now - last_throughput_snapshot > throughput_snapshot_interval:
+                    self.stats.record_throughput_snapshot()
+                    last_throughput_snapshot = now
+                
+                # Check server availability periodically
+                if now - last_server_check > server_check_interval:
+                    consecutive_failures = self._check_server_status(
+                        consecutive_failures, max_consecutive_failures, start_time, now)
                         
-                last_server_check = now
+                    if consecutive_failures >= max_consecutive_failures:
+                        elapsed_time = now - start_time
+                        print(f"[{datetime.now()}] ❌ Player {self.player_id}: Server appears to be down - stopping simulation (REASON: {consecutive_failures} consecutive connection failures after {elapsed_time:.1f}s)")
+                        sys.stdout.flush()
+                        break
+                            
+                    last_server_check = now
+                
+                try:
+                    # Select and execute game activity with realistic UT patterns
+                    activity = random.choices(
+                        ['query', 'join', 'gameplay', 'heartbeat', 'tcp_test'],
+                        weights=[5, 2, 85, 5, 3]  # Gameplay dominates (85%), realistic UT pattern
+                    )[0]
+                    
+                    self._execute_game_activity(activity)
+                    
+                    # Realistic UT gameplay frequency using authentic tickrate
+                    if activity == 'gameplay':
+                        delay = self.ut_tick_interval  # Already handled in _send_gameplay_packets
+                    else:
+                        delay = random.uniform(0.05, 0.5)  # Other activities more frequent, less blocking
+                    time.sleep(delay)
+                    
+                except Exception as e:
+                    self.stats.errors.append(f"Activity {activity}: {str(e)}")
+                    time.sleep(0.001)  # Minimal pause on error, maximum throughput
+
+        except Exception as e:
+            # Handle unexpected errors during simulation
+            total_runtime = time.time() - start_time
+            print(f"[{datetime.now()}] 💥 Player {self.player_id}: Simulation crashed after {total_runtime:.1f}s (REASON: Unexpected error - {str(e)}) - {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
+            sys.stdout.flush()
             
-            try:
-                # Select and execute game activity with realistic UT patterns
-                activity = random.choices(
-                    ['query', 'join', 'gameplay', 'heartbeat', 'tcp_test'],
-                    weights=[5, 2, 85, 5, 3]  # Gameplay dominates (85%), realistic UT pattern
-                )[0]
-                
-                self._execute_game_activity(activity)
-                
-                # Realistic UT gameplay frequency using authentic tickrate
-                if activity == 'gameplay':
-                    delay = self.ut_tick_interval  # Already handled in _send_gameplay_packets
-                else:
-                    delay = random.uniform(0.05, 0.5)  # Other activities more frequent, less blocking
-                time.sleep(delay)
-                
-            except Exception as e:
-                self.stats.errors.append(f"Activity {activity}: {str(e)}")
-                time.sleep(0.001)  # Minimal pause on error, maximum throughput
-                
-        self.running = False
-        total_runtime = time.time() - start_time
-        self.log(f"Simulation ended after {total_runtime:.1f}s. Sent {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
+        finally:
+            self.running = False
+            total_runtime = time.time() - start_time
+            
+            # Log final shutdown reason (if not already logged)
+            if hasattr(self, 'received_shutdown') and self.received_shutdown:
+                print(f"[{datetime.now()}] ✅ Player {self.player_id}: Simulation completed after {total_runtime:.1f}s (REASON: Graceful shutdown) - {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
+                sys.stdout.flush()
+            elif not hasattr(self, 'crashed'):  # Don't log twice if we already logged a crash
+                print(f"[{datetime.now()}] ⚠️ Player {self.player_id}: Simulation ended after {total_runtime:.1f}s (REASON: Server unreachable) - {self.stats.udp_packets_sent} UDP packets, {self.stats.tcp_connections} TCP connections")
+                sys.stdout.flush()
         
     def _send_server_query(self):
         """Send query packets to discover servers"""

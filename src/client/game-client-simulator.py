@@ -35,14 +35,7 @@ def main():
     
     total_connections = num_players * connections_per_player
     
-    print("Game Client Simulator - Maximum Load Mode")
-    print("Configuration:")
-    print(f"  Players: {num_players} (ENV: {os.getenv('NUM_CLIENTS', 'not set')})")
-    print(f"  Server: {server_ip} (ENV: {os.getenv('SERVER_IP', 'not set')})")
-    print(f"  Duration: {duration}s (ENV: {os.getenv('DURATION', 'not set')})")
-    print(f"  Connections per player: {connections_per_player} (ENV: {os.getenv('CONNECTIONS_PER_PLAYER', 'not set')})")
-    print(f"  Total concurrent connections: {total_connections}")
-    print("  Packet rate: 100-1000 packets/sec per connection")
+    print(f"Game Client Simulator: {num_players} players, {total_connections} connections, {duration}s")
     
     manager = GameClientManager(num_players, server_ip, duration, connections_per_player)
     manager.run_complete_simulation()
