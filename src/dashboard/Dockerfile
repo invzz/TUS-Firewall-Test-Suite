@@ -14,11 +14,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy dashboard requirements and install Python dependencies
-COPY requirements-dashboard.txt .
+COPY tools/requirements-dashboard.txt .
 RUN pip install --no-cache-dir -r requirements-dashboard.txt
 
 # Copy dashboard application
-COPY dashboard.py .
+COPY src/dashboard/dashboard.py .
 
 # Create results directory for volume mounting
 RUN mkdir -p /app/results

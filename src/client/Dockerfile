@@ -13,16 +13,16 @@ RUN apt-get update && apt-get install -y \
 # Create application directory
 WORKDIR /app
 
-# Copy entire client module (refactored into multiple files)
-COPY src/client/ ./client/
+# Copy the entire src directory to maintain package structure
+COPY src/ ./src/
 
 # Set Python path to find client modules
-ENV PYTHONPATH=/app/client
+ENV PYTHONPATH=/app
 
 # Environment variables for configuration (with defaults)
 ENV NUM_CLIENTS=18
 ENV SERVER_IP=nftables-test-container
 ENV DURATION=120
 
-# Default command
-CMD ["python3", "/app/client/game-client-simulator.py"]
+# Default command - run as module
+CMD ["python3", "-m", "src.client.game-client-simulator"]

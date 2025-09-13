@@ -25,15 +25,15 @@ RUN apt-get update && apt-get install -y \
     && mkdir -p /etc/nftables
 
 # Copy the nftables configuration
-COPY config/nftables.conf /etc/nftables/nftables.conf
+COPY configs/nftables/nftables.conf /etc/nftables/nftables.conf
 
 # Create application directory and set up Python environment
 WORKDIR /app
 
-# Copy entire server module (refactored into multiple files)
-COPY src/server/ ./server/
+# Copy the entire src directory to maintain package structure
+COPY src/ ./src/
 
-# Copy utility scripts
+# Copy utility scripts (keep backwards compatibility)
 COPY src/utils/ ./utils/
 
 # Copy main scripts to traditional locations for compatibility
@@ -41,13 +41,12 @@ COPY scripts/linux/run-auto-tests.sh /usr/local/bin/run-auto-tests.sh
 COPY src/utils/test-nftables.sh /usr/local/bin/test-nftables.sh
 COPY src/utils/enhanced-test.sh /usr/local/bin/enhanced-test.sh
 
-# Set up Python path and permissions, create symlinks
-ENV PYTHONPATH=/app/server:/app
+# Set up Python path and permissions
+ENV PYTHONPATH=/app
 RUN chmod +x /usr/local/bin/run-auto-tests.sh \
     /usr/local/bin/test-nftables.sh \
     /usr/local/bin/enhanced-test.sh \
-    /app/server/nftables-test-server.py \
-    && ln -sf /app/server/nftables-test-server.py /usr/local/bin/nftables-test-server.py
+    /app/src/server/nftables-test-server.py
 
 # Environment variables for server configuration
 ENV SERVER_MODE=test
